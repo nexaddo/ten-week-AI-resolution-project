@@ -157,7 +157,7 @@ export async function setupAuth(app: Express) {
         verify
       );
       passport.use(strategy);
-      registeredStrategies.set(strategyName, callbackURL);
+      registeredStrategies.add(strategyName);
       console.log(`✓ Strategy registered: ${strategyName} → ${callbackURL}`);
     }
   };
