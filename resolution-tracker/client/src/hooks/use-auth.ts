@@ -18,7 +18,27 @@ async function fetchUser(): Promise<User | null> {
 }
 
 async function logout(): Promise<void> {
-  window.location.href = "/api/logout";
+  try {
+    const response = await fetch("/api/logout", {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      // If the server-side logout fails, do not redirect away so the user remains in a consistent state.
+      // This also allows error logging/monitoring to capture the failure.
+      // eslint-disable-next-line no-console
+      console.error(`Logout failed: ${response.status} ${response.statusText}`);
+      return;
+    }
+  } catch (error) {
+    // Network or other unexpected error during logout request.
+    // eslint-disable-next-line no-console
+    console.error("Logout request failed", error);
+    return;
+  }
+
+  // Only redirect after the server-side logout has completed successfully.
+  window.location.href = "/";
 }
 
 export function useAuth() {

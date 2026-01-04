@@ -18,7 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { LogOut, User } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Category } from "@shared/schema";
 
@@ -116,7 +116,7 @@ function LoadingScreen() {
 }
 
 function AppContent() {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth();
 
   if (isLoading) {
     return <LoadingScreen />;
