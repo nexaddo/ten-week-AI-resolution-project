@@ -38,7 +38,7 @@ async function logout(): Promise<void> {
   }
 
   // Only redirect after the server-side logout has completed successfully.
-  window.location.href = "/api/logout";
+  window.location.href = "/";
 }
 
 export function useAuth() {
