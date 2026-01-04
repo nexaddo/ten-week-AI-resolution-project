@@ -6,6 +6,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
+import { csrf } from "lusca";
 import { authStorage } from "./storage";
 
 const getOidcConfig = memoize(
@@ -18,7 +19,7 @@ const getOidcConfig = memoize(
   { maxAge: 3600 * 1000 }
 );
 
-export function getSession() {
+export function getSession(): RequestHandler {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
@@ -27,7 +28,7 @@ export function getSession() {
     ttl: sessionTtl,
     tableName: "sessions",
   });
-  return session({
+  const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
@@ -38,6 +39,16 @@ export function getSession() {
       maxAge: sessionTtl,
     },
   });
+  const csrfMiddleware = csrf();
+
+  return (req, res, next) => {
+    sessionMiddleware(req, res, (err) => {
+      if (err) {
+        return next(err);
+      }
+      csrfMiddleware(req, res, next);
+    });
+  };
 }
 
 function updateUserSession(
