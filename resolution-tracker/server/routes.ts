@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertResolutionSchema, insertMilestoneSchema, insertCheckInSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import rateLimit from "express-rate-limit";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -11,6 +12,14 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Setup authentication (must be before other routes)
   await setupAuth(app);
+
+  // Rate limiter for milestone-related routes to mitigate abuse
+  const milestoneLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
   registerAuthRoutes(app);
 
   // Resolutions CRUD (protected routes)
@@ -82,7 +91,7 @@ export async function registerRoutes(
   });
 
   // Milestones CRUD (protected)
-  app.get("/api/resolutions/:resolutionId/milestones", isAuthenticated, async (req: any, res) => {
+  app.get("/api/resolutions/:resolutionId/milestones", milestoneLimiter, isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       // Verify the resolution belongs to the authenticated user
@@ -97,7 +106,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/milestones", isAuthenticated, async (req: any, res) => {
+  app.post("/api/milestones", milestoneLimiter, isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const parsed = insertMilestoneSchema.parse(req.body);
@@ -116,7 +125,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/milestones/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/milestones/:id", milestoneLimiter, isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       // First get the milestone to find its associated resolution
