@@ -1,6 +1,4 @@
 import { 
-  type User, 
-  type InsertUser,
   type Resolution,
   type InsertResolution,
   type Milestone,
@@ -11,16 +9,12 @@ import {
 import { randomUUID } from "crypto";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  
-  // Resolutions
-  getResolutions(): Promise<Resolution[]>;
-  getResolution(id: string): Promise<Resolution | undefined>;
-  createResolution(resolution: InsertResolution): Promise<Resolution>;
-  updateResolution(id: string, resolution: Partial<InsertResolution>): Promise<Resolution | undefined>;
-  deleteResolution(id: string): Promise<boolean>;
+  // Resolutions (user-scoped)
+  getResolutions(userId: string): Promise<Resolution[]>;
+  getResolution(id: string, userId: string): Promise<Resolution | undefined>;
+  createResolution(resolution: InsertResolution & { userId: string }): Promise<Resolution>;
+  updateResolution(id: string, resolution: Partial<InsertResolution>, userId: string): Promise<Resolution | undefined>;
+  deleteResolution(id: string, userId: string): Promise<boolean>;
   
   // Milestones
   getMilestones(resolutionId: string): Promise<Milestone[]>;
@@ -29,51 +23,36 @@ export interface IStorage {
   deleteMilestone(id: string): Promise<boolean>;
   
   // Check-ins
-  getCheckIns(): Promise<CheckIn[]>;
+  getCheckIns(userId: string): Promise<CheckIn[]>;
   getCheckInsByResolution(resolutionId: string): Promise<CheckIn[]>;
   createCheckIn(checkIn: InsertCheckIn): Promise<CheckIn>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
   private resolutions: Map<string, Resolution>;
   private milestones: Map<string, Milestone>;
   private checkIns: Map<string, CheckIn>;
 
   constructor() {
-    this.users = new Map();
     this.resolutions = new Map();
     this.milestones = new Map();
     this.checkIns = new Map();
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  // Resolutions (user-scoped)
+  async getResolutions(userId: string): Promise<Resolution[]> {
+    return Array.from(this.resolutions.values()).filter(r => r.userId === userId);
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async getResolution(id: string, userId: string): Promise<Resolution | undefined> {
+    const resolution = this.resolutions.get(id);
+    if (resolution && resolution.userId === userId) {
+      return resolution;
+    }
+    return undefined;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
-  }
-
-  // Resolutions
-  async getResolutions(): Promise<Resolution[]> {
-    return Array.from(this.resolutions.values());
-  }
-
-  async getResolution(id: string): Promise<Resolution | undefined> {
-    return this.resolutions.get(id);
-  }
-
-  async createResolution(insertResolution: InsertResolution): Promise<Resolution> {
+  async createResolution(insertResolution: InsertResolution & { userId: string }): Promise<Resolution> {
     const id = randomUUID();
     const resolution: Resolution = { 
       ...insertResolution, 
@@ -87,27 +66,30 @@ export class MemStorage implements IStorage {
     return resolution;
   }
 
-  async updateResolution(id: string, updates: Partial<InsertResolution>): Promise<Resolution | undefined> {
+  async updateResolution(id: string, updates: Partial<InsertResolution>, userId: string): Promise<Resolution | undefined> {
     const existing = this.resolutions.get(id);
-    if (!existing) return undefined;
+    if (!existing || existing.userId !== userId) return undefined;
     
     const updated: Resolution = { ...existing, ...updates };
     this.resolutions.set(id, updated);
     return updated;
   }
 
-  async deleteResolution(id: string): Promise<boolean> {
+  async deleteResolution(id: string, userId: string): Promise<boolean> {
+    const existing = this.resolutions.get(id);
+    if (!existing || existing.userId !== userId) return false;
+    
     // Also delete related milestones and check-ins
-    for (const [milestoneId, milestone] of this.milestones.entries()) {
+    Array.from(this.milestones.entries()).forEach(([milestoneId, milestone]) => {
       if (milestone.resolutionId === id) {
         this.milestones.delete(milestoneId);
       }
-    }
-    for (const [checkInId, checkIn] of this.checkIns.entries()) {
+    });
+    Array.from(this.checkIns.entries()).forEach(([checkInId, checkIn]) => {
       if (checkIn.resolutionId === id) {
         this.checkIns.delete(checkInId);
       }
-    }
+    });
     return this.resolutions.delete(id);
   }
 
@@ -144,8 +126,16 @@ export class MemStorage implements IStorage {
   }
 
   // Check-ins
-  async getCheckIns(): Promise<CheckIn[]> {
-    return Array.from(this.checkIns.values());
+  async getCheckIns(userId: string): Promise<CheckIn[]> {
+    // Get check-ins for resolutions owned by this user
+    const userResolutionIds = new Set(
+      Array.from(this.resolutions.values())
+        .filter(r => r.userId === userId)
+        .map(r => r.id)
+    );
+    return Array.from(this.checkIns.values()).filter(
+      c => userResolutionIds.has(c.resolutionId)
+    );
   }
 
   async getCheckInsByResolution(resolutionId: string): Promise<CheckIn[]> {

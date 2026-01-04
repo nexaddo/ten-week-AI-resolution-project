@@ -3,24 +3,31 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertResolutionSchema, insertMilestoneSchema, insertCheckInSchema } from "@shared/schema";
 import { z } from "zod";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Resolutions CRUD
-  app.get("/api/resolutions", async (req, res) => {
+  // Setup authentication (must be before other routes)
+  await setupAuth(app);
+  registerAuthRoutes(app);
+
+  // Resolutions CRUD (protected routes)
+  app.get("/api/resolutions", isAuthenticated, async (req: any, res) => {
     try {
-      const resolutions = await storage.getResolutions();
+      const userId = req.user.claims.sub;
+      const resolutions = await storage.getResolutions(userId);
       res.json(resolutions);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch resolutions" });
     }
   });
 
-  app.get("/api/resolutions/:id", async (req, res) => {
+  app.get("/api/resolutions/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const resolution = await storage.getResolution(req.params.id);
+      const userId = req.user.claims.sub;
+      const resolution = await storage.getResolution(req.params.id, userId);
       if (!resolution) {
         return res.status(404).json({ error: "Resolution not found" });
       }
@@ -30,10 +37,11 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/resolutions", async (req, res) => {
+  app.post("/api/resolutions", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const parsed = insertResolutionSchema.parse(req.body);
-      const resolution = await storage.createResolution(parsed);
+      const resolution = await storage.createResolution({ ...parsed, userId });
       res.status(201).json(resolution);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -43,10 +51,11 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/resolutions/:id", async (req, res) => {
+  app.patch("/api/resolutions/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const updates = insertResolutionSchema.partial().parse(req.body);
-      const resolution = await storage.updateResolution(req.params.id, updates);
+      const resolution = await storage.updateResolution(req.params.id, updates, userId);
       if (!resolution) {
         return res.status(404).json({ error: "Resolution not found" });
       }
@@ -59,9 +68,10 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/resolutions/:id", async (req, res) => {
+  app.delete("/api/resolutions/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const deleted = await storage.deleteResolution(req.params.id);
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteResolution(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Resolution not found" });
       }
@@ -71,8 +81,8 @@ export async function registerRoutes(
     }
   });
 
-  // Milestones CRUD
-  app.get("/api/resolutions/:resolutionId/milestones", async (req, res) => {
+  // Milestones CRUD (protected)
+  app.get("/api/resolutions/:resolutionId/milestones", isAuthenticated, async (req, res) => {
     try {
       const milestones = await storage.getMilestones(req.params.resolutionId);
       res.json(milestones);
@@ -81,7 +91,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/milestones", async (req, res) => {
+  app.post("/api/milestones", isAuthenticated, async (req, res) => {
     try {
       const parsed = insertMilestoneSchema.parse(req.body);
       const milestone = await storage.createMilestone(parsed);
@@ -94,7 +104,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/milestones/:id", async (req, res) => {
+  app.patch("/api/milestones/:id", isAuthenticated, async (req, res) => {
     try {
       const updates = insertMilestoneSchema.partial().parse(req.body);
       const milestone = await storage.updateMilestone(req.params.id, updates);
@@ -110,7 +120,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/milestones/:id", async (req, res) => {
+  app.delete("/api/milestones/:id", isAuthenticated, async (req, res) => {
     try {
       const deleted = await storage.deleteMilestone(req.params.id);
       if (!deleted) {
@@ -122,17 +132,18 @@ export async function registerRoutes(
     }
   });
 
-  // Check-ins
-  app.get("/api/check-ins", async (req, res) => {
+  // Check-ins (protected)
+  app.get("/api/check-ins", isAuthenticated, async (req: any, res) => {
     try {
-      const checkIns = await storage.getCheckIns();
+      const userId = req.user.claims.sub;
+      const checkIns = await storage.getCheckIns(userId);
       res.json(checkIns);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch check-ins" });
     }
   });
 
-  app.get("/api/resolutions/:resolutionId/check-ins", async (req, res) => {
+  app.get("/api/resolutions/:resolutionId/check-ins", isAuthenticated, async (req, res) => {
     try {
       const checkIns = await storage.getCheckInsByResolution(req.params.resolutionId);
       res.json(checkIns);
@@ -141,7 +152,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/check-ins", async (req, res) => {
+  app.post("/api/check-ins", isAuthenticated, async (req, res) => {
     try {
       const parsed = insertCheckInSchema.parse(req.body);
       const checkIn = await storage.createCheckIn(parsed);
