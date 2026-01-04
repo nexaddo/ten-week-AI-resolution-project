@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
+import { type Server } from "http";
 import { storage } from "./storage";
 import { insertResolutionSchema, insertMilestoneSchema, insertCheckInSchema } from "@shared/schema";
 import { z } from "zod";
@@ -82,8 +82,14 @@ export async function registerRoutes(
   });
 
   // Milestones CRUD (protected)
-  app.get("/api/resolutions/:resolutionId/milestones", isAuthenticated, async (req, res) => {
+  app.get("/api/resolutions/:resolutionId/milestones", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      // Verify the resolution belongs to the authenticated user
+      const resolution = await storage.getResolution(req.params.resolutionId, userId);
+      if (!resolution) {
+        return res.status(404).json({ error: "Resolution not found" });
+      }
       const milestones = await storage.getMilestones(req.params.resolutionId);
       res.json(milestones);
     } catch (error) {
@@ -91,9 +97,15 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/milestones", isAuthenticated, async (req, res) => {
+  app.post("/api/milestones", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const parsed = insertMilestoneSchema.parse(req.body);
+      // Verify the resolution belongs to the authenticated user
+      const resolution = await storage.getResolution(parsed.resolutionId, userId);
+      if (!resolution) {
+        return res.status(403).json({ error: "Unauthorized: Resolution not found or does not belong to user" });
+      }
       const milestone = await storage.createMilestone(parsed);
       res.status(201).json(milestone);
     } catch (error) {
@@ -104,8 +116,19 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/milestones/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/milestones/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      // First get the milestone to find its associated resolution
+      const existingMilestone = await storage.getMilestone(req.params.id);
+      if (!existingMilestone) {
+        return res.status(404).json({ error: "Milestone not found" });
+      }
+      // Verify the resolution belongs to the authenticated user
+      const resolution = await storage.getResolution(existingMilestone.resolutionId, userId);
+      if (!resolution) {
+        return res.status(403).json({ error: "Unauthorized: Resolution does not belong to user" });
+      }
       const updates = insertMilestoneSchema.partial().parse(req.body);
       const milestone = await storage.updateMilestone(req.params.id, updates);
       if (!milestone) {
@@ -120,8 +143,19 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/milestones/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/milestones/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      // First get the milestone to find its associated resolution
+      const existingMilestone = await storage.getMilestone(req.params.id);
+      if (!existingMilestone) {
+        return res.status(404).json({ error: "Milestone not found" });
+      }
+      // Verify the resolution belongs to the authenticated user
+      const resolution = await storage.getResolution(existingMilestone.resolutionId, userId);
+      if (!resolution) {
+        return res.status(403).json({ error: "Unauthorized: Resolution does not belong to user" });
+      }
       const deleted = await storage.deleteMilestone(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Milestone not found" });
@@ -143,8 +177,14 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/resolutions/:resolutionId/check-ins", isAuthenticated, async (req, res) => {
+  app.get("/api/resolutions/:resolutionId/check-ins", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      // Verify the resolution belongs to the authenticated user
+      const resolution = await storage.getResolution(req.params.resolutionId, userId);
+      if (!resolution) {
+        return res.status(404).json({ error: "Resolution not found" });
+      }
       const checkIns = await storage.getCheckInsByResolution(req.params.resolutionId);
       res.json(checkIns);
     } catch (error) {
@@ -152,9 +192,15 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/check-ins", isAuthenticated, async (req, res) => {
+  app.post("/api/check-ins", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const parsed = insertCheckInSchema.parse(req.body);
+      // Verify the resolution belongs to the authenticated user
+      const resolution = await storage.getResolution(parsed.resolutionId, userId);
+      if (!resolution) {
+        return res.status(403).json({ error: "Unauthorized: Resolution not found or does not belong to user" });
+      }
       const checkIn = await storage.createCheckIn(parsed);
       res.status(201).json(checkIn);
     } catch (error) {

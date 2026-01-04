@@ -21,6 +21,7 @@ export interface IStorage {
   createMilestone(milestone: InsertMilestone): Promise<Milestone>;
   updateMilestone(id: string, milestone: Partial<InsertMilestone>): Promise<Milestone | undefined>;
   deleteMilestone(id: string): Promise<boolean>;
+  getMilestone(id: string): Promise<Milestone | undefined>;
   
   // Check-ins
   getCheckIns(userId: string): Promise<CheckIn[]>;
@@ -123,6 +124,10 @@ export class MemStorage implements IStorage {
 
   async deleteMilestone(id: string): Promise<boolean> {
     return this.milestones.delete(id);
+  }
+
+  async getMilestone(id: string): Promise<Milestone | undefined> {
+    return this.milestones.get(id);
   }
 
   // Check-ins

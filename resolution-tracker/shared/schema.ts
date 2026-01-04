@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, date } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -25,7 +25,7 @@ export type Status = (typeof statuses)[number];
 // Resolution schema
 export const resolutions = pgTable("resolutions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id),
   title: text("title").notNull(),
   description: text("description"),
   category: text("category").notNull(),
@@ -34,10 +34,16 @@ export const resolutions = pgTable("resolutions", {
   progress: integer("progress").notNull().default(0),
 });
 
-export const insertResolutionSchema = createInsertSchema(resolutions).omit({
-  id: true,
-  userId: true,
-});
+export const insertResolutionSchema = createInsertSchema(resolutions)
+  .omit({
+    id: true,
+    userId: true,
+  })
+  .extend({
+    category: z.enum(categories),
+    status: z.enum(statuses).optional(),
+    progress: z.number().int().min(0).max(100).optional(),
+  });
 
 export type InsertResolution = z.infer<typeof insertResolutionSchema>;
 export type Resolution = typeof resolutions.$inferSelect;
@@ -45,7 +51,7 @@ export type Resolution = typeof resolutions.$inferSelect;
 // Milestone schema
 export const milestones = pgTable("milestones", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  resolutionId: varchar("resolution_id").notNull(),
+  resolutionId: varchar("resolution_id").notNull().references(() => resolutions.id),
   title: text("title").notNull(),
   completed: boolean("completed").notNull().default(false),
   targetDate: text("target_date"),
@@ -61,7 +67,7 @@ export type Milestone = typeof milestones.$inferSelect;
 // Check-in schema for progress updates
 export const checkIns = pgTable("check_ins", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  resolutionId: varchar("resolution_id").notNull(),
+  resolutionId: varchar("resolution_id").notNull().references(() => resolutions.id),
   note: text("note").notNull(),
   date: text("date").notNull(),
 });
