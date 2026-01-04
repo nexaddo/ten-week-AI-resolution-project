@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Resolution Tracker/**'
+      - 'resolution-tracker/**'
   workflow_dispatch:
 
 permissions:
@@ -20,10 +20,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
-    defaults:
-      run:
-        working-directory: ./Resolution Tracker
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,14 +29,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: './Resolution Tracker/package-lock.json'
+          cache-dependency-path: 'resolution-tracker/package-lock.json'
 
       - name: Install dependencies
         run: npm ci
+        working-directory: resolution-tracker
 
       - name: Build for static deployment
-        run: npx vite build --base=/ten-week-AI-resolution-project/
-        working-directory: ./Resolution Tracker/client
+        run: npm run build && npx vite build --base=/ten-week-AI-resolution-project/ client
+        working-directory: resolution-tracker
         env:
           NODE_ENV: production
 
@@ -48,7 +45,7 @@ jobs:
         run: |
           mkdir -p dist/public
           cp -r client/dist/* dist/public/
-        working-directory: ./Resolution Tracker
+        working-directory: resolution-tracker
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -56,7 +53,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './Resolution Tracker/dist/public'
+          path: 'resolution-tracker/dist/public'
 
   deploy:
     environment:
