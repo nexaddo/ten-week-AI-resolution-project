@@ -1,5 +1,8 @@
 version: '3.8'
 
+# Docker Compose looks for .env file by default in the same directory
+# Copy .env.nas.example to .env and fill in your secrets before running
+
 services:
   # PostgreSQL Database
   postgres:
