@@ -5,6 +5,7 @@ import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
+import rateLimit from "express-rate-limit";
 
 const viteLogger = createLogger();
 
@@ -31,7 +32,17 @@ export async function setupVite(server: Server, app: Express) {
 
   app.use(vite.middlewares);
 
-  app.use("*", async (req, res, next) => {
+  // Rate limiter for development HTML serving to prevent DoS attacks
+  // More generous than API limits since this serves the main application
+  const htmlLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 100, // 100 requests per minute should be more than sufficient for dev
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: "Too many requests, please try again later.",
+  });
+
+  app.use("*", htmlLimiter, async (req, res, next) => {
     const url = req.originalUrl;
 
     try {
