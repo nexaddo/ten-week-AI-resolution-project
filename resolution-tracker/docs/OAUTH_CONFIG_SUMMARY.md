@@ -2,13 +2,22 @@
 
 ## ✅ Current Setup
 
-Your application now supports **both Replit Auth and Google Auth**!
+Your application now supports **Google, GitHub, Apple, and Replit Auth**.
 
-### Google OAuth (Currently Active)
-- **Status**: ✅ Enabled and running
-- **Client ID**: Configured in `.env`
-- **ISSUER_URL**: `https://accounts.google.com`
-- **Server**: Running on `http://localhost:5000`
+### Google OAuth (OIDC)
+- **Status**: ✅ Available
+- **Client ID**: `GOOGLE_CLIENT_ID`
+- **Issuer**: `https://accounts.google.com`
+
+### GitHub OAuth
+- **Status**: ✅ Available
+- **Client ID**: `GITHUB_CLIENT_ID`
+- **Callback**: `http://localhost:5000/api/callback?provider=github`
+
+### Apple OAuth (OIDC)
+- **Status**: ✅ Available
+- **Client ID**: `APPLE_CLIENT_ID`
+- **Issuer**: `https://appleid.apple.com`
 
 ### Replit Auth (Available for deployment)
 - **Status**: Available (not active locally)
@@ -21,39 +30,39 @@ Your application now supports **both Replit Auth and Google Auth**!
 
 ```env
 # Google OAuth
-ISSUER_URL=https://accounts.google.com
-CLIENT_ID=your-client-id-here
-CLIENT_SECRET=your-client-secret-here
+GOOGLE_CLIENT_ID=your-client-id-here
+GOOGLE_CLIENT_SECRET=your-client-secret-here
 
-# For Replit deployment, use instead:
+# GitHub OAuth
+GITHUB_CLIENT_ID=your-github-client-id-here
+GITHUB_CLIENT_SECRET=your-github-client-secret-here
+
+# Apple OAuth
+APPLE_CLIENT_ID=your-apple-service-id-here
+APPLE_CLIENT_SECRET=your-apple-client-secret-jwt-here
+
+# Replit deployment
 # REPL_ID=your-replit-id
 
-# Required for both:
+# Optional default provider
+# DEFAULT_AUTH_PROVIDER=google
+
+# Required for all:
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/resolutions
 SESSION_SECRET=dev-session-secret-change-in-production
 ```
 
 ## 🔄 How It Works
 
-The application automatically detects which OAuth provider to use:
-
-1. **Google OAuth** is used if:
-   - `CLIENT_ID` and `CLIENT_SECRET` are set
-   - `ISSUER_URL` is set to `https://accounts.google.com`
-
-2. **Replit Auth** is used if:
-   - `REPL_ID` is set
-   - `CLIENT_ID` is NOT set
-
-3. **Development Mode** (no OAuth) if:
-   - Neither `CLIENT_ID` nor `REPL_ID` are set
+The application automatically detects which OAuth provider(s) are available and
+uses the `provider` query param or `DEFAULT_AUTH_PROVIDER` to choose one.
 
 ## 🧪 Testing OAuth Locally
 
 1. **Application is running on**: `http://localhost:5000`
-2. **Callback URL**: `http://localhost:5000/api/callback`
-3. **Login Route**: `/api/login`
-4. **Logout Route**: `/api/logout`
+2. **Callback URL**: `http://localhost:5000/api/callback?provider=<provider>`
+3. **Login Route**: `/api/login?provider=<provider>`
+4. **Logout Route**: `/api/logout?provider=<provider>`
 
 ## 🚀 Switching Between OAuth Providers
 
@@ -61,9 +70,8 @@ The application automatically detects which OAuth provider to use:
 
 ```env
 # Comment out or remove these:
-# CLIENT_ID=...
-# CLIENT_SECRET=...
-# ISSUER_URL=...
+# GOOGLE_CLIENT_ID=...
+# GOOGLE_CLIENT_SECRET=...
 
 # Add this:
 REPL_ID=your-replit-project-id
@@ -72,9 +80,8 @@ REPL_ID=your-replit-project-id
 ### To return to Google Auth:
 
 ```env
-ISSUER_URL=https://accounts.google.com
-CLIENT_ID=your-client-id
-CLIENT_SECRET=your-client-secret
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
 
 # Comment out:
 # REPL_ID=...
@@ -89,11 +96,11 @@ CLIENT_SECRET=your-client-secret
 
 ## 🔧 Adding New OIDC Providers
 
-To add support for other OIDC providers (Microsoft, GitHub, etc.):
+To add support for other OIDC providers (Microsoft, etc.):
 
 1. Set `ISSUER_URL` to your provider's OIDC discovery endpoint
 2. Set `CLIENT_ID` and `CLIENT_SECRET`
-3. Add the callback URL to your provider's configuration
+3. Use `provider=custom` in the callback URL or set `DEFAULT_AUTH_PROVIDER=custom`
 4. The app will automatically discover and use the provider
 
 Example:

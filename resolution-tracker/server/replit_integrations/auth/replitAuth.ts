@@ -2,67 +2,207 @@ import * as client from "openid-client";
 import { Strategy, type VerifyFunction } from "openid-client/passport";
 
 import passport from "passport";
+import { Strategy as GitHubStrategy, type Profile as GitHubProfile } from "passport-github2";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
 
+const sessionTtlMs = 7 * 24 * 60 * 60 * 1000; // 1 week
+const sessionTtlSeconds = Math.floor(sessionTtlMs / 1000);
+
+type OidcProvider = "google" | "apple" | "replit" | "custom";
+type OAuthProvider = OidcProvider | "github";
+
+const legacyIssuerUrl = process.env.ISSUER_URL;
+const legacyClientId = process.env.CLIENT_ID;
+const legacyClientSecret = process.env.CLIENT_SECRET;
+
+function resolveLegacyProvider(): OidcProvider | null {
+  if (!legacyClientId) {
+    return null;
+  }
+
+  if (legacyIssuerUrl === "https://accounts.google.com") {
+    return "google";
+  }
+
+  if (legacyIssuerUrl === "https://appleid.apple.com") {
+    return "apple";
+  }
+
+  if (legacyIssuerUrl) {
+    return "custom";
+  }
+
+  return null;
+}
+
+function isOidcProvider(provider: OAuthProvider): provider is OidcProvider {
+  return provider !== "github";
+}
+
+type OidcProviderConfig = {
+  issuerUrl?: string;
+  clientId?: string;
+  clientSecret?: string;
+  label: string;
+  requiresSecret: boolean;
+  scopes?: string;
+  accessTypeOffline?: boolean;
+};
+
+function getOidcProviderConfig(provider: OidcProvider): OidcProviderConfig {
+  const legacyProvider = resolveLegacyProvider();
+
+  switch (provider) {
+    case "google":
+      return {
+        issuerUrl: "https://accounts.google.com",
+        clientId:
+          process.env.GOOGLE_CLIENT_ID ||
+          (legacyProvider === "google" ? legacyClientId : undefined),
+        clientSecret:
+          process.env.GOOGLE_CLIENT_SECRET ||
+          (legacyProvider === "google" ? legacyClientSecret : undefined),
+        label: "Google",
+        requiresSecret: true,
+        scopes: "openid email profile",
+        accessTypeOffline: true,
+      };
+    case "apple":
+      return {
+        issuerUrl: "https://appleid.apple.com",
+        clientId:
+          process.env.APPLE_CLIENT_ID ||
+          (legacyProvider === "apple" ? legacyClientId : undefined),
+        clientSecret:
+          process.env.APPLE_CLIENT_SECRET ||
+          (legacyProvider === "apple" ? legacyClientSecret : undefined),
+        label: "Apple",
+        requiresSecret: true,
+        scopes: "openid email name",
+      };
+    case "replit":
+      return {
+        issuerUrl: "https://replit.com/oidc",
+        clientId: process.env.REPL_ID,
+        clientSecret: undefined,
+        label: "Replit",
+        requiresSecret: false,
+        scopes: "openid email profile offline_access",
+      };
+    case "custom":
+      return {
+        issuerUrl: legacyProvider === "custom" ? legacyIssuerUrl : undefined,
+        clientId: legacyProvider === "custom" ? legacyClientId : undefined,
+        clientSecret: legacyProvider === "custom" ? legacyClientSecret : undefined,
+        label: "Custom",
+        requiresSecret: true,
+        scopes: "openid email profile offline_access",
+      };
+  }
+}
+
+function isOidcProviderConfigured(provider: OidcProvider): boolean {
+  const config = getOidcProviderConfig(provider);
+  if (!config.clientId || !config.issuerUrl) {
+    return false;
+  }
+
+  if (config.requiresSecret && !config.clientSecret) {
+    return false;
+  }
+
+  return true;
+}
+
+function getConfiguredProviders(): Set<OAuthProvider> {
+  const providers = new Set<OAuthProvider>();
+
+  (['google', 'apple', 'replit', 'custom'] as OidcProvider[]).forEach((provider) => {
+    if (isOidcProviderConfigured(provider)) {
+      providers.add(provider);
+    }
+  });
+
+  if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+    providers.add("github");
+  }
+
+  return providers;
+}
+
+function resolveProvider(input?: unknown): OAuthProvider | null {
+  const raw = Array.isArray(input)
+    ? input[0]
+    : typeof input === "string"
+      ? input
+      : null;
+  const normalized = raw?.toLowerCase();
+
+  if (normalized === "google" || normalized === "apple" || normalized === "replit" || normalized === "custom" || normalized === "github") {
+    return normalized;
+  }
+
+  const configured = getConfiguredProviders();
+  const preferred = process.env.DEFAULT_AUTH_PROVIDER?.toLowerCase();
+  if (preferred && configured.has(preferred as OAuthProvider)) {
+    return preferred as OAuthProvider;
+  }
+
+  if (configured.has("google")) return "google";
+  if (configured.has("apple")) return "apple";
+  if (configured.has("github")) return "github";
+  if (configured.has("replit")) return "replit";
+  if (configured.has("custom")) return "custom";
+
+  return null;
+}
+
 const getOidcConfig = memoize(
-  async () => {
-    // Detect which OAuth provider is configured
-    const hasReplitConfig = process.env.REPL_ID && !process.env.CLIENT_ID;
-    const hasGoogleConfig = process.env.CLIENT_ID && process.env.CLIENT_SECRET;
-    
-    let issuerUrl = process.env.ISSUER_URL;
-    let clientId = process.env.CLIENT_ID || process.env.REPL_ID;
-    
-    // Auto-detect issuer URL based on configuration
-    if (!issuerUrl) {
-      if (hasGoogleConfig) {
-        issuerUrl = "https://accounts.google.com";
-        console.log("🔐 Using Google OAuth");
-      } else if (hasReplitConfig) {
-        issuerUrl = "https://replit.com/oidc";
-        console.log("🔐 Using Replit OAuth");
-      }
-    }
-    
-    // Return early if client ID is not set (development mode without OAuth)
-    if (!clientId) {
-      console.warn("⚠️  No OAuth configuration found - authentication disabled.");
-      console.info("💡 To enable OAuth:");
-      console.info("   - For Google Auth: Set CLIENT_ID, CLIENT_SECRET, and ISSUER_URL in .env");
-      console.info("   - For Replit Auth: Set REPL_ID in .env");
-      console.info("   - See OAUTH_SETUP.md for detailed instructions");
+  async (provider: OidcProvider) => {
+    const providerConfig = getOidcProviderConfig(provider);
+
+    if (!providerConfig.clientId) {
       return null;
     }
-    
-    if (!issuerUrl) {
-      console.error("❌ ISSUER_URL not set. Please configure your OAuth provider.");
+
+    if (!providerConfig.issuerUrl) {
+      console.error(`❌ ISSUER_URL not set for ${providerConfig.label} OAuth.`);
       return null;
     }
-    
+
+    if (providerConfig.requiresSecret && !providerConfig.clientSecret) {
+      console.error(`❌ CLIENT_SECRET not set for ${providerConfig.label} OAuth.`);
+      return null;
+    }
+
     try {
+      console.log(`🔐 Using ${providerConfig.label} OAuth`);
       return await client.discovery(
-        new URL(issuerUrl),
-        clientId
+        new URL(providerConfig.issuerUrl),
+        providerConfig.clientId,
+        providerConfig.clientSecret
       );
     } catch (error) {
-      console.error(`❌ Failed to discover OIDC configuration from ${issuerUrl}:`, error);
+      console.error(`❌ Failed to discover OIDC configuration from ${providerConfig.issuerUrl}:`, error);
       return null;
     }
   },
-  { maxAge: 3600 * 1000 }
+  {
+    maxAge: 3600 * 1000,
+    normalizer: (args) => args[0],
+  }
 );
 
 export function getSession(): RequestHandler {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: false,
-    ttl: sessionTtl,
+    ttl: sessionTtlMs,
     tableName: "sessions",
   });
   const sessionMiddleware = session({
@@ -72,32 +212,91 @@ export function getSession(): RequestHandler {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
-      maxAge: sessionTtl,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: sessionTtlMs,
     },
   });
 
   return sessionMiddleware;
 }
 
+type UserClaims = {
+  sub?: string;
+  email?: string;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  first_name?: string;
+  last_name?: string;
+  picture?: string;
+  profile_image_url?: string;
+  exp?: number;
+  [key: string]: unknown;
+};
+
 function updateUserSession(
   user: any,
-  tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers
+  claims: UserClaims,
+  accessToken?: string,
+  refreshToken?: string,
+  provider?: OAuthProvider
 ) {
-  user.claims = tokens.claims();
-  user.access_token = tokens.access_token;
-  user.refresh_token = tokens.refresh_token;
-  user.expires_at = user.claims?.exp;
+  user.claims = claims;
+  user.access_token = accessToken;
+  user.refresh_token = refreshToken;
+  user.expires_at = claims?.exp ?? Math.floor(Date.now() / 1000) + sessionTtlSeconds;
+  user.auth_provider = provider;
 }
 
-async function upsertUser(claims: any) {
-  await authStorage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
-  });
+function splitName(name?: string): { firstName?: string; lastName?: string } {
+  if (!name) {
+    return {};
+  }
+
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) {
+    return { firstName: parts[0] };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function extractUserFromClaims(claims: UserClaims) {
+  const nameParts = splitName(claims.name);
+
+  return {
+    id: claims.sub!,
+    email: claims.email,
+    firstName: claims.first_name || claims.given_name || nameParts.firstName,
+    lastName: claims.last_name || claims.family_name || nameParts.lastName,
+    profileImageUrl: claims.profile_image_url || claims.picture,
+  };
+}
+
+async function upsertUser(claims: UserClaims) {
+  if (!claims.sub) {
+    return;
+  }
+
+  await authStorage.upsertUser(extractUserFromClaims(claims));
+}
+
+function buildGithubClaims(profile: GitHubProfile): UserClaims {
+  const primaryEmail = profile.emails?.[0]?.value;
+  const displayName = profile.displayName || profile.username || "";
+  const nameParts = splitName(displayName);
+
+  return {
+    sub: `github:${profile.id}`,
+    email: primaryEmail,
+    name: displayName,
+    given_name: nameParts.firstName,
+    family_name: nameParts.lastName,
+    picture: profile.photos?.[0]?.value,
+  };
 }
 
 export async function setupAuth(app: Express) {
@@ -106,99 +305,198 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  const config = await getOidcConfig();
+  const configuredProviders = getConfiguredProviders();
 
   // Skip OAuth setup if credentials are not configured
-  if (!config) {
+  if (configuredProviders.size === 0) {
     console.log("ℹ️  Running in development mode without OAuth authentication");
     return;
   }
 
   console.log("✅ OAuth authentication enabled");
 
-  const verify: VerifyFunction = async (
-    tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
-    verified: passport.AuthenticateCallback
+  const createVerifyOidc = (provider: OidcProvider): VerifyFunction =>
+    async (
+      tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
+      verified: passport.AuthenticateCallback
+    ) => {
+      const user = {};
+      const claims = tokens.claims() as UserClaims;
+      updateUserSession(user, claims, tokens.access_token, tokens.refresh_token, provider);
+      await upsertUser(claims);
+      verified(null, user);
+    };
+
+  const verifyGithub = async (
+    accessToken: string,
+    _refreshToken: string,
+    profile: GitHubProfile,
+    done: passport.AuthenticateCallback
   ) => {
     const user = {};
-    updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
-    verified(null, user);
+    const claims = buildGithubClaims(profile);
+    updateUserSession(user, claims, accessToken, undefined, "github");
+    await upsertUser(claims);
+    done(null, user);
   };
 
   // Keep track of registered strategies
   const registeredStrategies = new Set<string>();
 
-  // Helper function to ensure strategy exists for a domain
-  const ensureStrategy = (req: any) => {
+  const getCallbackURL = (req: any, provider: OAuthProvider) => {
     const domain = req.hostname;
-    const protocol = req.protocol; // will be http or https
-    const port = req.get('host'); // includes port if not default
-    
-    // Construct callback URL: for localhost use http, for others use https
-    let callbackURL: string;
-    if (domain === 'localhost' || domain === '127.0.0.1') {
-      // Local development - use http with full host:port
-      callbackURL = `http://${port}/api/callback`;
-    } else {
-      // Production - use https
-      callbackURL = `https://${domain}/api/callback`;
+    const port = req.get("host");
+    const isLocalhost = domain === "localhost" || domain === "127.0.0.1";
+    const protocol = isLocalhost ? "http" : "https";
+
+    if (provider === "github") {
+      return `${protocol}://${port}/api/callback/github`;
     }
-    
-    const strategyName = `oidc:${domain}`;
+
+    return `${protocol}://${port}/api/callback?provider=${provider}`;
+  };
+
+  const ensureOidcStrategy = async (req: any, provider: OidcProvider) => {
+    const config = await getOidcConfig(provider);
+    if (!config) {
+      return null;
+    }
+
+    const strategyName = `oidc:${provider}:${req.hostname}`;
     if (!registeredStrategies.has(strategyName)) {
       const strategy = new Strategy(
         {
           name: strategyName,
           config,
-          scope: "openid email profile offline_access",
-          callbackURL,
+          callbackURL: getCallbackURL(req, provider),
         },
-        verify
+        createVerifyOidc(provider)
       );
       passport.use(strategy);
       registeredStrategies.add(strategyName);
-      console.log(`✓ Strategy registered: ${strategyName} → ${callbackURL}`);
+      console.log(`✓ Strategy registered: ${strategyName}`);
     }
+
+    return strategyName;
+  };
+
+  const ensureGithubStrategy = (req: any) => {
+    const strategyName = `github:${req.hostname}`;
+    if (!registeredStrategies.has(strategyName)) {
+      const callbackURL = getCallbackURL(req, "github");
+      const strategy = new GitHubStrategy(
+        {
+          clientID: process.env.GITHUB_CLIENT_ID!,
+          clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+          callbackURL,
+        },
+        verifyGithub
+      );
+      passport.use(strategyName, strategy);
+      registeredStrategies.add(strategyName);
+      console.log(`✓ Strategy registered: ${strategyName}`);
+    }
+
+    return strategyName;
   };
 
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-  app.get("/api/login", (req, res, next) => {
-    ensureStrategy(req);
-    const strategyName = `oidc:${req.hostname}`;
-    passport.authenticate(strategyName, {
+  app.get("/api/login", async (req, res, next) => {
+    const provider = resolveProvider(req.query.provider);
+    if (!provider) {
+      return res.status(400).json({ message: "No OAuth providers configured." });
+    }
+
+    if (provider === "github") {
+      const strategyName = ensureGithubStrategy(req);
+      return passport.authenticate(strategyName, {
+        scope: ["read:user", "user:email"],
+      })(req, res, next);
+    }
+
+    const strategyName = await ensureOidcStrategy(req, provider);
+    if (!strategyName) {
+      return res.status(400).json({ message: `${provider} OAuth is not configured.` });
+    }
+
+    const providerConfig = getOidcProviderConfig(provider);
+    const authOptions: any = {
       prompt: "login consent",
-      scope: ["openid", "email", "profile", "offline_access"],
-    })(req, res, next);
+      scope: (providerConfig.scopes || "openid email profile").split(" "),
+    };
+    if (providerConfig.accessTypeOffline) {
+      authOptions.access_type = "offline";
+    }
+
+    return passport.authenticate(strategyName, authOptions)(req, res, next);
   });
 
-  app.get("/api/callback", (req, res, next) => {
-    ensureStrategy(req);
-    const strategyName = `oidc:${req.hostname}`;
-    passport.authenticate(strategyName, {
+  app.get("/api/callback/github", (req, res, next) => {
+    const strategyName = ensureGithubStrategy(req);
+    return passport.authenticate(strategyName, {
       successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
+      failureRedirect: "/api/login?provider=github",
     })(req, res, next);
   });
 
-  app.get("/api/logout", (req, res) => {
-    req.logout(() => {
-      const clientId = process.env.CLIENT_ID || process.env.REPL_ID;
-      res.redirect(
-        client.buildEndSessionUrl(config, {
-          client_id: clientId!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-        }).href
-      );
+  app.get("/api/callback", async (req, res, next) => {
+    const provider = resolveProvider(req.query.provider);
+    if (!provider) {
+      return res.redirect("/api/login");
+    }
+
+    if (provider === "github") {
+      return res.redirect("/api/callback/github");
+    }
+
+    const strategyName = await ensureOidcStrategy(req, provider);
+    if (!strategyName) {
+      return res.redirect("/api/login");
+    }
+
+    return passport.authenticate(strategyName, {
+      successReturnToOrRedirect: "/",
+      failureRedirect: `/api/login?provider=${provider}`,
+    })(req, res, next);
+  });
+
+  app.get("/api/logout", async (req, res) => {
+    const provider = resolveProvider(req.query.provider);
+    req.logout(async () => {
+      if (!provider || provider === "github") {
+        return res.redirect("/");
+      }
+
+      const config = await getOidcConfig(provider);
+      if (!config) {
+        return res.redirect("/");
+      }
+
+      const providerConfig = getOidcProviderConfig(provider);
+      const clientId = providerConfig.clientId;
+      if (!clientId) {
+        return res.redirect("/");
+      }
+
+      try {
+        return res.redirect(
+          client.buildEndSessionUrl(config, {
+            client_id: clientId,
+            post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+          }).href
+        );
+      } catch (error) {
+        return res.redirect("/");
+      }
     });
   });
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   // If OAuth is not configured, allow all requests in development mode
-  if (!process.env.CLIENT_ID && !process.env.REPL_ID) {
+  if (getConfiguredProviders().size === 0) {
     return next();
   }
 
@@ -213,6 +511,12 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return next();
   }
 
+  const provider = user.auth_provider as OAuthProvider | undefined;
+  if (!provider || !isOidcProvider(provider)) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
   const refreshToken = user.refresh_token;
   if (!refreshToken) {
     res.status(401).json({ message: "Unauthorized" });
@@ -220,12 +524,12 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   }
 
   try {
-    const config = await getOidcConfig();
+    const config = await getOidcConfig(provider);
     if (!config) {
       return next();
     }
     const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
-    updateUserSession(user, tokenResponse);
+    updateUserSession(user, tokenResponse.claims() as UserClaims, tokenResponse.access_token, tokenResponse.refresh_token, provider);
     return next();
   } catch (error) {
     res.status(401).json({ message: "Unauthorized" });

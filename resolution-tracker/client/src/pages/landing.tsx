@@ -1,7 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AuthProviderDialog } from "@/components/auth-provider-dialog";
 import { Target, TrendingUp, Calendar, Award } from "lucide-react";
+import { FaGoogle, FaGithub, FaApple } from "react-icons/fa";
 
 export function Landing() {
   return (
@@ -13,9 +15,9 @@ export function Landing() {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button data-testid="button-login" asChild>
-            <a href="/api/login">Sign In</a>
-          </Button>
+          <AuthProviderDialog>
+            <Button data-testid="button-login">Sign In</Button>
+          </AuthProviderDialog>
         </div>
       </header>
 
@@ -28,9 +30,9 @@ export function Landing() {
             Set meaningful resolutions, track your progress, and celebrate milestones. 
             Start your journey towards personal growth today.
           </p>
-          <Button size="lg" data-testid="button-get-started" asChild>
-            <a href="/api/login">Get Started</a>
-          </Button>
+          <AuthProviderDialog title="Get Started" description="Choose your sign-in method to begin">
+            <Button size="lg" data-testid="button-get-started">Get Started</Button>
+          </AuthProviderDialog>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-5xl mx-auto">
@@ -76,7 +78,7 @@ export function Landing() {
         </div>
 
         <div className="text-center mt-16 text-sm text-muted-foreground">
-          <p>Sign in with Google, GitHub, Apple, or email to get started.</p>
+          <p>Sign in with Google, GitHub, or Apple to get started.</p>
         </div>
       </main>
     </div>
