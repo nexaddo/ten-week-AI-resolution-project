@@ -62,7 +62,7 @@ All documentation is located in [`resolution-tracker/docs/`](resolution-tracker/
 - **Frontend:** React 18, TypeScript, Tailwind CSS, shadcn/ui
 - **Backend:** Node.js, Express, TypeScript, PostgreSQL, Drizzle ORM
 - **AI:** Anthropic Claude, OpenAI GPT, Google Gemini
-- **Auth:** Replit Auth (OAuth 2.0)
+- **Auth:** OAuth 2.0 (Google, GitHub, Apple)
 - **DevOps:** Docker, Docker Compose
 
 ## 📅 Progress
@@ -106,7 +106,6 @@ MIT
 ## 🙏 Acknowledgments
 
 - [AI New Year Bootcamp](https://aidbnewyear.com/program) - Project inspiration
-- [Replit](https://replit.com) - Authentication provider
 - [Anthropic](https://anthropic.com), [OpenAI](https://openai.com), [Google](https://ai.google.dev) - AI models
 - [shadcn/ui](https://ui.shadcn.com/) - UI components
 

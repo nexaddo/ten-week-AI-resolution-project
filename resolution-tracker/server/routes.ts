@@ -3,7 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { insertResolutionSchema, insertMilestoneSchema, insertCheckInSchema, insertPromptTestSchema } from "@shared/schema";
 import { z } from "zod";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth_integrations/auth";
 import rateLimit from "express-rate-limit";
 import { AIOrchestrator } from "./ai/orchestrator";
 import { PromptTester } from "./ai/promptTester";

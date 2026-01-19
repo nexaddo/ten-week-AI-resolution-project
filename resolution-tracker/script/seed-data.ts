@@ -53,7 +53,7 @@ async function seedData() {
       .insert(checkIns)
       .values({
         resolutionId: resolution.id,
-        note: "Worked on this resolution tracker for week 1 and integrated login with github, apple, and google OAuth. Initially tried using Replit, but moved onto using github copilot and Claude Code with Opus",
+        note: "Worked on this resolution tracker for week 1 and integrated login with GitHub, Apple, and Google OAuth. Started with standard OAuth providers and refined the authentication flow.",
         date: new Date().toISOString().split("T")[0],
       })
       .returning();

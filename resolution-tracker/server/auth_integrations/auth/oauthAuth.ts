@@ -12,7 +12,7 @@ import { authStorage } from "./storage";
 const sessionTtlMs = 7 * 24 * 60 * 60 * 1000; // 1 week
 const sessionTtlSeconds = Math.floor(sessionTtlMs / 1000);
 
-type OidcProvider = "google" | "apple" | "replit" | "custom";
+type OidcProvider = "google" | "apple" | "custom";
 type OAuthProvider = OidcProvider | "github";
 
 const legacyIssuerUrl = process.env.ISSUER_URL;
@@ -84,15 +84,6 @@ function getOidcProviderConfig(provider: OidcProvider): OidcProviderConfig {
         requiresSecret: true,
         scopes: "openid email name",
       };
-    case "replit":
-      return {
-        issuerUrl: "https://replit.com/oidc",
-        clientId: process.env.REPL_ID,
-        clientSecret: undefined,
-        label: "Replit",
-        requiresSecret: false,
-        scopes: "openid email profile offline_access",
-      };
     case "custom":
       return {
         issuerUrl: legacyProvider === "custom" ? legacyIssuerUrl : undefined,
@@ -121,7 +112,7 @@ function isOidcProviderConfigured(provider: OidcProvider): boolean {
 function getConfiguredProviders(): Set<OAuthProvider> {
   const providers = new Set<OAuthProvider>();
 
-  (['google', 'apple', 'replit', 'custom'] as OidcProvider[]).forEach((provider) => {
+  (['google', 'apple', 'custom'] as OidcProvider[]).forEach((provider) => {
     if (isOidcProviderConfigured(provider)) {
       providers.add(provider);
     }
@@ -142,7 +133,7 @@ function resolveProvider(input?: unknown): OAuthProvider | null {
       : null;
   const normalized = raw?.toLowerCase();
 
-  if (normalized === "google" || normalized === "apple" || normalized === "replit" || normalized === "custom" || normalized === "github") {
+  if (normalized === "google" || normalized === "apple" || normalized === "custom" || normalized === "github") {
     return normalized;
   }
 
@@ -155,7 +146,6 @@ function resolveProvider(input?: unknown): OAuthProvider | null {
   if (configured.has("google")) return "google";
   if (configured.has("apple")) return "apple";
   if (configured.has("github")) return "github";
-  if (configured.has("replit")) return "replit";
   if (configured.has("custom")) return "custom";
 
   return null;

@@ -92,7 +92,7 @@ See [docs/DEPLOY_QUICK_START.md](docs/DEPLOY_QUICK_START.md) for deployment inst
 - **Google Gemini** - Gemini Pro
 
 ### Authentication
-- **Replit Auth** - OAuth provider
+- **OAuth** - Multi-provider authentication
 - **Express Session** - Session management
 
 ### DevOps
@@ -116,7 +116,7 @@ resolution-tracker/
 │   │   ├── providers/   # AI model integrations
 │   │   ├── orchestrator.ts
 │   │   └── promptTester.ts
-│   ├── replit_integrations/  # OAuth authentication
+│   ├── auth_integrations/  # OAuth authentication
 │   ├── routes.ts        # API routes
 │   ├── storage.ts       # Data access layer
 │   └── index.ts         # Server entry point
@@ -164,10 +164,11 @@ NODE_ENV=development
 PORT=5000
 SESSION_SECRET=your-session-secret
 
-# OAuth (Replit Auth)
-REPLIT_AUTH_DOMAIN=https://auth.replit.com
-REPLIT_CLIENT_ID=your-client-id
-REPLIT_CLIENT_SECRET=your-client-secret
+# OAuth Providers
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-secret
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-secret
 
 # AI Models
 ANTHROPIC_API_KEY=sk-ant-your-key
@@ -274,7 +275,6 @@ MIT
 ## 🙏 Acknowledgments
 
 - Built as part of the [AI New Year Bootcamp](https://aidbnewyear.com/program)
-- Uses [Replit Auth](https://replit.com) for authentication
 - Powered by Anthropic Claude, OpenAI GPT, and Google Gemini
 - UI components from [shadcn/ui](https://ui.shadcn.com/)
 

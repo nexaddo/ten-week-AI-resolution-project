@@ -3,7 +3,7 @@ import { db } from "../../db";
 import { eq } from "drizzle-orm";
 
 // Interface for auth storage operations
-// (IMPORTANT) These user operations are mandatory for Replit Auth.
+// (IMPORTANT) These user operations are mandatory for OAuth authentication.
 export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
