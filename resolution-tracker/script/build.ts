@@ -1,6 +1,6 @@
 import { build as viteBuild } from 'vite';
 import { build as esbuild } from 'esbuild';
-import { resolve, dirname, join } from 'path';
+import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { cpSync, existsSync, mkdirSync } from 'fs';
 import { execSync } from 'child_process';

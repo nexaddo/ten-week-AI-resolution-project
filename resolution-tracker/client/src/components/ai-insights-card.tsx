@@ -14,7 +14,7 @@ export function AiInsightsCard({ checkInId }: AiInsightsCardProps) {
   const [pollCount, setPollCount] = useState(0);
   const maxPolls = 15; // 15 polls * 2 seconds = 30 seconds
 
-  const { data: insights, isLoading, error, refetch } = useQuery<AiInsight[]>({
+  const { data: insights, isLoading, error } = useQuery<AiInsight[]>({
     queryKey: ["/api/check-ins", checkInId, "insights"],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/check-ins/${checkInId}/insights`);

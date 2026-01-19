@@ -3,7 +3,6 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthProviderDialog } from "@/components/auth-provider-dialog";
 import { Target, TrendingUp, Calendar, Award } from "lucide-react";
-import { FaGoogle, FaGithub, FaApple } from "react-icons/fa";
 
 export function Landing() {
   return (

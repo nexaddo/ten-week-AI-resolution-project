@@ -27,8 +27,14 @@ async function seedData() {
   console.log("🌱 Seeding database with sample data...\n");
 
   try {
-    // Check if user is authenticated
-    const userId = process.env.SEED_USER_ID || "github:1382111"; // Your GitHub user ID from logs
+    // Get user ID from environment or use development default
+    const userId = process.env.SEED_USER_ID || process.env.DEV_USER_ID || "dev-user";
+
+    if (!process.env.SEED_USER_ID && !process.env.DEV_USER_ID) {
+      console.log("⚠️  No SEED_USER_ID or DEV_USER_ID set. Using default 'dev-user'");
+      console.log("💡 To seed with a specific user, set SEED_USER_ID environment variable");
+      console.log("   Example: SEED_USER_ID=github:12345 npm run seed\n");
+    }
 
     console.log(`Using user ID: ${userId}\n`);
 

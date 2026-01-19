@@ -485,8 +485,21 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
-  // If OAuth is not configured, allow all requests in development mode
+  // If OAuth is not configured, provide a mock user for development mode
   if (getConfiguredProviders().size === 0) {
+    // Create a mock user object for development
+    req.user = {
+      claims: {
+        sub: process.env.DEV_USER_ID || "dev-user",
+        email: process.env.DEV_USER_EMAIL || "dev@localhost",
+        name: "Development User",
+        given_name: "Development",
+        family_name: "User",
+      },
+      access_token: "dev-token",
+      expires_at: Math.floor(Date.now() / 1000) + sessionTtlSeconds,
+      auth_provider: "development",
+    } as any;
     return next();
   }
 

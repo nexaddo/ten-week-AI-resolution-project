@@ -9,6 +9,7 @@ import { AIOrchestrator } from "./ai/orchestrator";
 import { PromptTester } from "./ai/promptTester";
 import type { ModelSelectionStrategy } from "./ai/types";
 import { log } from "./index";
+import { pool } from "./db";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -29,8 +30,8 @@ export async function registerRoutes(
   // Health check endpoint (public, for monitoring)
   app.get("/api/health", async (_req, res) => {
     try {
-      // Check database connection
-      await storage.getResolutions("health-check");
+      // Check database connection with a simple query that doesn't require user context
+      await pool.query("SELECT 1");
       res.status(200).json({
         status: "healthy",
         timestamp: new Date().toISOString(),

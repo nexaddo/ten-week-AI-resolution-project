@@ -104,6 +104,14 @@ export class AIOrchestrator {
 
     if (providersToUse.length === 0) {
       console.log(`No AI providers available for check-in ${checkInId}`);
+      // Store a user-facing insight indicating no providers are configured
+      await this.storage.createAiInsight({
+        checkInId,
+        modelName: "system",
+        insight: "AI analysis is not available. Please configure at least one AI provider (Anthropic, OpenAI, or Google) to enable insights.",
+        suggestion: null,
+        sentiment: null,
+      });
       return;
     }
 
@@ -118,6 +126,17 @@ export class AIOrchestrator {
     console.log(
       `AI analysis for check-in ${checkInId}: ${succeeded} succeeded, ${failed} failed`
     );
+
+    // If all providers failed, create a user-facing insight
+    if (succeeded === 0 && failed > 0) {
+      await this.storage.createAiInsight({
+        checkInId,
+        modelName: "system",
+        insight: "AI analysis temporarily failed. Your check-in was saved successfully. This may be due to API rate limits or connectivity issues. Please try again later.",
+        suggestion: null,
+        sentiment: null,
+      });
+    }
   }
 
   private async callProviderWithTracking(

@@ -27,6 +27,8 @@ export const statuses = ["not_started", "in_progress", "completed", "abandoned"]
 export type Status = (typeof statuses)[number];
 
 // Resolution schema
+// NOTE: targetDate uses text type for backward compatibility with existing data.
+// Future migration should convert to timestamp type for better date handling.
 export const resolutions = pgTable("resolutions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
@@ -34,7 +36,7 @@ export const resolutions = pgTable("resolutions", {
   description: text("description"),
   category: text("category").notNull(),
   status: text("status").notNull().default("not_started"),
-  targetDate: text("target_date"),
+  targetDate: text("target_date"), // TODO: Migrate to timestamp type
   progress: integer("progress").notNull().default(0),
 });
 
@@ -53,12 +55,14 @@ export type InsertResolution = z.infer<typeof insertResolutionSchema>;
 export type Resolution = typeof resolutions.$inferSelect;
 
 // Milestone schema
+// NOTE: targetDate uses text type for backward compatibility with existing data.
+// Future migration should convert to timestamp type for consistency.
 export const milestones = pgTable("milestones", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   resolutionId: varchar("resolution_id").notNull().references(() => resolutions.id),
   title: text("title").notNull(),
   completed: boolean("completed").notNull().default(false),
-  targetDate: text("target_date"),
+  targetDate: text("target_date"), // TODO: Migrate to timestamp type
 });
 
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({
@@ -69,11 +73,13 @@ export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
 export type Milestone = typeof milestones.$inferSelect;
 
 // Check-in schema for progress updates
+// NOTE: date uses text type for backward compatibility with existing data.
+// Future migration should convert to timestamp type for consistency with other tables.
 export const checkIns = pgTable("check_ins", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   resolutionId: varchar("resolution_id").notNull().references(() => resolutions.id),
   note: text("note").notNull(),
-  date: text("date").notNull(),
+  date: text("date").notNull(), // TODO: Migrate to timestamp type
 });
 
 export const insertCheckInSchema = createInsertSchema(checkIns).omit({

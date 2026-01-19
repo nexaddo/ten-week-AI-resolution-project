@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, ThumbsUp, MessageSquare } from "lucide-react";
+import { Loader2, Sparkles, ThumbsUp } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { PromptTest, PromptTestResult } from "@shared/schema";
 

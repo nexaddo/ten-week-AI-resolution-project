@@ -14,12 +14,8 @@ import { Sparkles, TrendingUp, DollarSign, Zap, CheckCircle2, XCircle } from "lu
 import { apiRequest } from "@/lib/queryClient";
 import type { AiModelUsage } from "@shared/schema";
 import {
-  AreaChart,
-  Area,
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
