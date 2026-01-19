@@ -5,6 +5,7 @@ import { StatsCards } from "@/components/stats-cards";
 import { ResolutionCard } from "@/components/resolution-card";
 import { AddResolutionDialog } from "@/components/add-resolution-dialog";
 import { CheckInDialog } from "@/components/check-in-dialog";
+import { AiInsightsCard } from "@/components/ai-insights-card";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Loader2 } from "lucide-react";
@@ -22,6 +23,7 @@ export function Dashboard({ selectedCategory }: DashboardProps) {
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
   const [editingResolution, setEditingResolution] = useState<Resolution | null>(null);
   const [checkInResolution, setCheckInResolution] = useState<Resolution | null>(null);
+  const [lastCheckInId, setLastCheckInId] = useState<string | null>(null);
 
   const { data: resolutions = [], isLoading } = useQuery<Resolution[]>({
     queryKey: ["/api/resolutions"],
@@ -72,33 +74,35 @@ export function Dashboard({ selectedCategory }: DashboardProps) {
   });
 
   const checkInMutation = useMutation({
-    mutationFn: async ({ 
-      resolutionId, 
-      note, 
-      progress 
-    }: { 
-      resolutionId: string; 
-      note: string; 
-      progress: number; 
+    mutationFn: async ({
+      resolutionId,
+      note,
+      progress
+    }: {
+      resolutionId: string;
+      note: string;
+      progress: number;
     }) => {
       const checkInRes = await apiRequest("POST", "/api/check-ins", {
         resolutionId,
         note,
         date: new Date().toISOString().split("T")[0],
       } as InsertCheckIn);
-      await checkInRes.json();
-      const updateRes = await apiRequest("PATCH", `/api/resolutions/${resolutionId}`, { 
+      const checkInData = await checkInRes.json();
+      const updateRes = await apiRequest("PATCH", `/api/resolutions/${resolutionId}`, {
         progress,
         status: progress === 100 ? "completed" : "in_progress",
       });
-      return updateRes.json();
+      await updateRes.json();
+      return checkInData;
     },
-    onSuccess: () => {
+    onSuccess: (checkInData) => {
       queryClient.invalidateQueries({ queryKey: ["/api/resolutions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/check-ins"] });
       setCheckInDialogOpen(false);
       setCheckInResolution(null);
-      toast({ title: "Check-in logged successfully!" });
+      setLastCheckInId(checkInData.id);
+      toast({ title: "Check-in saved! AI is analyzing...", description: "Scroll down to see AI insights as they arrive." });
     },
     onError: () => {
       toast({ title: "Failed to log check-in", variant: "destructive" });
@@ -214,6 +218,12 @@ export function Dashboard({ selectedCategory }: DashboardProps) {
               onAddCheckIn={handleAddCheckIn}
             />
           ))}
+        </div>
+      )}
+
+      {lastCheckInId && (
+        <div className="mt-6">
+          <AiInsightsCard checkInId={lastCheckInId} />
         </div>
       )}
 

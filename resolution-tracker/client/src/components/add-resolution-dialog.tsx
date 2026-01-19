@@ -17,20 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { categories, type Resolution, type Category } from "@shared/schema";
+import { categories, type Resolution, type Category, type InsertResolution } from "@shared/schema";
 import { Loader2 } from "lucide-react";
 
 interface AddResolutionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: {
-    title: string;
-    description: string;
-    category: Category;
-    targetDate: string;
-    status: string;
-    progress: number;
-  }) => void;
+  onSubmit: (data: InsertResolution) => void;
   editingResolution?: Resolution | null;
   isSubmitting?: boolean;
 }
@@ -64,14 +57,12 @@ export function AddResolutionDialog({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    
+
     onSubmit({
       title: title.trim(),
-      description: description.trim(),
+      description: description.trim() || undefined,
       category,
-      targetDate,
-      status: editingResolution?.status || "not_started",
-      progress: editingResolution?.progress || 0,
+      targetDate: targetDate || undefined,
     });
   };
 

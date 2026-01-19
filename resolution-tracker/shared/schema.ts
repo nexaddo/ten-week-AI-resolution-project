@@ -82,3 +82,89 @@ export const insertCheckInSchema = createInsertSchema(checkIns).omit({
 
 export type InsertCheckIn = z.infer<typeof insertCheckInSchema>;
 export type CheckIn = typeof checkIns.$inferSelect;
+
+// AI Insights schema - stores AI-generated analysis
+export const aiInsights = pgTable("ai_insights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  checkInId: varchar("check_in_id").notNull().references(() => checkIns.id),
+  modelName: text("model_name").notNull(),
+  insight: text("insight").notNull(),
+  suggestion: text("suggestion"),
+  sentiment: text("sentiment"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertAiInsightSchema = createInsertSchema(aiInsights).omit({
+  id: true,
+});
+
+export type InsertAiInsight = z.infer<typeof insertAiInsightSchema>;
+export type AiInsight = typeof aiInsights.$inferSelect;
+
+// AI Model Usage schema - tracks performance metrics for model comparison
+export const aiModelUsage = pgTable("ai_model_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  checkInId: varchar("check_in_id").notNull().references(() => checkIns.id),
+  modelName: text("model_name").notNull(),
+  provider: text("provider").notNull(),
+  endpoint: text("endpoint").notNull(),
+  promptTokens: integer("prompt_tokens").notNull(),
+  completionTokens: integer("completion_tokens").notNull(),
+  totalTokens: integer("total_tokens").notNull(),
+  latencyMs: integer("latency_ms").notNull(),
+  estimatedCost: text("estimated_cost").notNull(),
+  status: text("status").notNull(),
+  errorMessage: text("error_message"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertAiModelUsageSchema = createInsertSchema(aiModelUsage).omit({
+  id: true,
+});
+
+export type InsertAiModelUsage = z.infer<typeof insertAiModelUsageSchema>;
+export type AiModelUsage = typeof aiModelUsage.$inferSelect;
+
+// Prompt Test schema - for testing prompts across different models
+export const promptTests = pgTable("prompt_tests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  prompt: text("prompt").notNull(),
+  systemPrompt: text("system_prompt"),
+  category: text("category"), // e.g., "creative", "analytical", "code", "general"
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertPromptTestSchema = createInsertSchema(promptTests).omit({
+  id: true,
+  userId: true,
+});
+
+export type InsertPromptTest = z.infer<typeof insertPromptTestSchema>;
+export type PromptTest = typeof promptTests.$inferSelect;
+
+// Prompt Test Results - stores outputs from each model
+export const promptTestResults = pgTable("prompt_test_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promptTestId: varchar("prompt_test_id").notNull().references(() => promptTests.id),
+  modelName: text("model_name").notNull(),
+  provider: text("provider").notNull(),
+  output: text("output").notNull(),
+  promptTokens: integer("prompt_tokens").notNull(),
+  completionTokens: integer("completion_tokens").notNull(),
+  totalTokens: integer("total_tokens").notNull(),
+  latencyMs: integer("latency_ms").notNull(),
+  estimatedCost: text("estimated_cost").notNull(),
+  status: text("status").notNull(), // "success", "error"
+  errorMessage: text("error_message"),
+  userRating: integer("user_rating"), // 1-5 stars
+  userComment: text("user_comment"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertPromptTestResultSchema = createInsertSchema(promptTestResults).omit({
+  id: true,
+});
+
+export type InsertPromptTestResult = z.infer<typeof insertPromptTestResultSchema>;
+export type PromptTestResult = typeof promptTestResults.$inferSelect;

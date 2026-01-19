@@ -12,6 +12,8 @@ import { Dashboard } from "@/pages/dashboard";
 import { Achievements } from "@/pages/achievements";
 import { CalendarView } from "@/pages/calendar-view";
 import { Settings } from "@/pages/settings";
+import { AIDashboard } from "@/pages/ai-dashboard";
+import PromptPlayground from "@/pages/prompt-playground";
 import { Landing } from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
@@ -29,6 +31,8 @@ function Router({ selectedCategory }: { selectedCategory: Category | null }) {
       <Route path="/resolutions" component={() => <Dashboard selectedCategory={selectedCategory} />} />
       <Route path="/calendar" component={CalendarView} />
       <Route path="/achievements" component={Achievements} />
+      <Route path="/ai-dashboard" component={AIDashboard} />
+      <Route path="/prompt-playground" component={PromptPlayground} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
