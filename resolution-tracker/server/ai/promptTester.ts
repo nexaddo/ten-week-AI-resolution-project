@@ -120,7 +120,6 @@ export class PromptTester {
         errorMessage: null,
         userRating: null,
         userComment: null,
-        createdAt: new Date().toISOString(),
       });
     } catch (error) {
       const latencyMs = Date.now() - startTime;
@@ -141,7 +140,6 @@ export class PromptTester {
         errorMessage,
         userRating: null,
         userComment: null,
-        createdAt: new Date().toISOString(),
       });
     }
   }

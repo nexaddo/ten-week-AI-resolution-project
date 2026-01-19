@@ -267,10 +267,10 @@ export class MemStorage implements IStorage {
 
     // Filter by date range
     if (filters?.startDate) {
-      results = results.filter((u) => u.createdAt >= filters.startDate!);
+      results = results.filter((u) => u.createdAt >= new Date(filters.startDate!));
     }
     if (filters?.endDate) {
-      results = results.filter((u) => u.createdAt <= filters.endDate!);
+      results = results.filter((u) => u.createdAt <= new Date(filters.endDate!));
     }
 
     return results;

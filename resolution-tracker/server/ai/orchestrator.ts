@@ -142,7 +142,6 @@ export class AIOrchestrator {
         insight: response.result.insight,
         suggestion: response.result.suggestion || null,
         sentiment: response.result.sentiment || null,
-        createdAt: new Date().toISOString(),
       });
 
       // Store usage metrics
@@ -158,7 +157,6 @@ export class AIOrchestrator {
         estimatedCost: response.metrics.estimatedCost,
         status: "success",
         errorMessage: null,
-        createdAt: new Date().toISOString(),
       });
 
       console.log(
@@ -181,7 +179,6 @@ export class AIOrchestrator {
         estimatedCost: "0",
         status: "error",
         errorMessage,
-        createdAt: new Date().toISOString(),
       });
 
       console.error(
