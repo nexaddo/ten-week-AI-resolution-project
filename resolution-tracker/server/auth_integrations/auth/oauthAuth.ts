@@ -8,6 +8,8 @@ import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
+import rateLimit from "express-rate-limit";
+import { doubleCsrf } from "csrf-csrf";
 
 const sessionTtlMs = 7 * 24 * 60 * 60 * 1000; // 1 week
 const sessionTtlSeconds = Math.floor(sessionTtlMs / 1000);
@@ -292,6 +294,25 @@ function buildGithubClaims(profile: GitHubProfile): UserClaims {
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
+
+  // Add CSRF protection for session cookies
+  const { doubleCsrfProtection } = doubleCsrf({
+    getSecret: () => process.env.SESSION_SECRET || "default-csrf-secret-change-in-production",
+    getSessionIdentifier: (req) => req.session?.id || "",
+    cookieName: "__Host-psifi.x-csrf-token",
+    cookieOptions: {
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+    },
+    size: 64,
+    ignoredMethods: ["GET", "HEAD", "OPTIONS"],
+  });
+
+  // Apply CSRF protection to all routes
+  app.use(doubleCsrfProtection);
+
   app.use(passport.initialize());
   app.use(passport.session());
 
@@ -393,7 +414,16 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-  app.get("/api/login", async (req, res, next) => {
+  // Rate limiter for authentication routes to prevent brute force attacks
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // strict limit for auth endpoints
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: "Too many authentication attempts, please try again later.",
+  });
+
+  app.get("/api/login", authLimiter, async (req, res, next) => {
     const provider = resolveProvider(req.query.provider);
     if (!provider) {
       return res.status(400).json({ message: "No OAuth providers configured." });
@@ -423,7 +453,7 @@ export async function setupAuth(app: Express) {
     return passport.authenticate(strategyName, authOptions)(req, res, next);
   });
 
-  app.get("/api/callback/github", (req, res, next) => {
+  app.get("/api/callback/github", authLimiter, (req, res, next) => {
     const strategyName = ensureGithubStrategy(req);
     return passport.authenticate(strategyName, {
       successReturnToOrRedirect: "/",
@@ -431,7 +461,7 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.get("/api/callback", async (req, res, next) => {
+  app.get("/api/callback", authLimiter, async (req, res, next) => {
     const provider = resolveProvider(req.query.provider);
     if (!provider) {
       return res.redirect("/api/login");
@@ -452,7 +482,7 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.get("/api/logout", async (req, res) => {
+  app.get("/api/logout", authLimiter, async (req, res) => {
     const provider = resolveProvider(req.query.provider);
     req.logout(async () => {
       if (!provider || provider === "github") {

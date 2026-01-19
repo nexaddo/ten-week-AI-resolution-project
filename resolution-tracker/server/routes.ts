@@ -18,6 +18,18 @@ export async function registerRoutes(
   // Setup authentication (must be before other routes)
   await setupAuth(app);
 
+  // Global API rate limiter to prevent abuse across all endpoints
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 1000, // generous limit for general API usage
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: "Too many requests, please try again later.",
+  });
+
+  // Apply global rate limiting to all API routes
+  app.use("/api", apiLimiter);
+
   // Rate limiter for milestone-related routes to mitigate abuse
   const milestoneLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
