@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "tsx script/dev.ts",
     "build": "tsx script/build.ts",
+    "build:docker": "tsx script/build.ts -- --docker",
+    "build:push-ghcr": "tsx script/build.ts -- --push-to-ghcr",
+    "build:push-nas": "tsx script/build.ts -- --push-to-nas",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "tsx script/safe-db-push.ts",
