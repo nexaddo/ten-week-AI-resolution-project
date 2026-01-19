@@ -220,6 +220,7 @@ export class MemStorage implements IStorage {
       id,
       suggestion: insertAiInsight.suggestion ?? null,
       sentiment: insertAiInsight.sentiment ?? null,
+      createdAt: new Date(),
     };
     this.aiInsights.set(id, aiInsight);
     return aiInsight;
@@ -281,6 +282,7 @@ export class MemStorage implements IStorage {
       ...insertAiModelUsage,
       id,
       errorMessage: insertAiModelUsage.errorMessage ?? null,
+      createdAt: new Date(),
     };
     this.aiModelUsage.set(id, aiModelUsage);
     return aiModelUsage;
@@ -306,6 +308,7 @@ export class MemStorage implements IStorage {
       id,
       systemPrompt: insertPromptTest.systemPrompt ?? null,
       category: insertPromptTest.category ?? null,
+      createdAt: new Date(),
     };
     this.promptTests.set(id, promptTest);
     return promptTest;
@@ -340,6 +343,7 @@ export class MemStorage implements IStorage {
       errorMessage: insertResult.errorMessage ?? null,
       userRating: insertResult.userRating ?? null,
       userComment: insertResult.userComment ?? null,
+      createdAt: new Date(),
     };
     this.promptTestResults.set(id, result);
     return result;

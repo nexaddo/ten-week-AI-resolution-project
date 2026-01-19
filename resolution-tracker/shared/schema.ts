@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -91,11 +91,12 @@ export const aiInsights = pgTable("ai_insights", {
   insight: text("insight").notNull(),
   suggestion: text("suggestion"),
   sentiment: text("sentiment"),
-  createdAt: text("created_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertAiInsightSchema = createInsertSchema(aiInsights).omit({
   id: true,
+  createdAt: true,
 });
 
 export type InsertAiInsight = z.infer<typeof insertAiInsightSchema>;
@@ -115,11 +116,12 @@ export const aiModelUsage = pgTable("ai_model_usage", {
   estimatedCost: text("estimated_cost").notNull(),
   status: text("status").notNull(),
   errorMessage: text("error_message"),
-  createdAt: text("created_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertAiModelUsageSchema = createInsertSchema(aiModelUsage).omit({
   id: true,
+  createdAt: true,
 });
 
 export type InsertAiModelUsage = z.infer<typeof insertAiModelUsageSchema>;
@@ -132,12 +134,13 @@ export const promptTests = pgTable("prompt_tests", {
   prompt: text("prompt").notNull(),
   systemPrompt: text("system_prompt"),
   category: text("category"), // e.g., "creative", "analytical", "code", "general"
-  createdAt: text("created_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertPromptTestSchema = createInsertSchema(promptTests).omit({
   id: true,
   userId: true,
+  createdAt: true,
 });
 
 export type InsertPromptTest = z.infer<typeof insertPromptTestSchema>;
@@ -159,11 +162,12 @@ export const promptTestResults = pgTable("prompt_test_results", {
   errorMessage: text("error_message"),
   userRating: integer("user_rating"), // 1-5 stars
   userComment: text("user_comment"),
-  createdAt: text("created_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertPromptTestResultSchema = createInsertSchema(promptTestResults).omit({
   id: true,
+  createdAt: true,
 });
 
 export type InsertPromptTestResult = z.infer<typeof insertPromptTestResultSchema>;

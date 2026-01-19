@@ -8,6 +8,7 @@ import rateLimit from "express-rate-limit";
 import { AIOrchestrator } from "./ai/orchestrator";
 import { PromptTester } from "./ai/promptTester";
 import type { ModelSelectionStrategy } from "./ai/types";
+import { log } from "./index";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -24,6 +25,26 @@ export async function registerRoutes(
     legacyHeaders: false,
   });
   registerAuthRoutes(app);
+
+  // Health check endpoint (public, for monitoring)
+  app.get("/api/health", async (_req, res) => {
+    try {
+      // Check database connection
+      await storage.getResolutions("health-check");
+      res.status(200).json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        database: "connected",
+      });
+    } catch (error) {
+      res.status(503).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        database: "disconnected",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
 
   // Resolutions CRUD (protected routes)
   app.get("/api/resolutions", isAuthenticated, async (req: any, res) => {
@@ -340,7 +361,7 @@ export async function registerRoutes(
 
       // Run the prompt against all AI models asynchronously
       const tester = new PromptTester(storage);
-      tester.testPromptAsync(promptTest.id, {
+      tester.testPrompt(promptTest.id, {
         prompt: promptTest.prompt,
         systemPrompt: promptTest.systemPrompt || undefined,
       });
@@ -350,7 +371,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      log.error("Failed to create prompt test:", error);
+      log(`Failed to create prompt test: ${error}`);
       res.status(500).json({ error: "Failed to create prompt test" });
     }
   });
@@ -361,7 +382,7 @@ export async function registerRoutes(
       const tests = await storage.getPromptTests(userId);
       res.json(tests);
     } catch (error) {
-      log.error("Failed to fetch prompt tests:", error);
+      log(`Failed to fetch prompt tests: ${error}`);
       res.status(500).json({ error: "Failed to fetch prompt tests" });
     }
   });
@@ -377,7 +398,7 @@ export async function registerRoutes(
 
       res.json(test);
     } catch (error) {
-      log.error("Failed to fetch prompt test:", error);
+      log(`Failed to fetch prompt test: ${error}`);
       res.status(500).json({ error: "Failed to fetch prompt test" });
     }
   });
@@ -394,7 +415,7 @@ export async function registerRoutes(
       const results = await storage.getPromptTestResults(req.params.id);
       res.json(results);
     } catch (error) {
-      log.error("Failed to fetch prompt test results:", error);
+      log(`Failed to fetch prompt test results: ${error}`);
       res.status(500).json({ error: "Failed to fetch results" });
     }
   });
@@ -418,7 +439,7 @@ export async function registerRoutes(
 
       res.json(updated);
     } catch (error) {
-      log.error("Failed to update rating:", error);
+      log(`Failed to update rating: ${error}`);
       res.status(500).json({ error: "Failed to update rating" });
     }
   });
@@ -434,7 +455,7 @@ export async function registerRoutes(
 
       res.status(204).send();
     } catch (error) {
-      log.error("Failed to delete prompt test:", error);
+      log(`Failed to delete prompt test: ${error}`);
       res.status(500).json({ error: "Failed to delete prompt test" });
     }
   });

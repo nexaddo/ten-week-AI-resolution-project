@@ -64,7 +64,7 @@ export class PromptTester {
     if (googleKey) {
       providers.set("google", {
         client: new GoogleGenerativeAI(googleKey),
-        name: "gemini-pro",
+        name: "gemini-1.5-pro",
         provider: "google",
       });
     }
