@@ -3,8 +3,12 @@ import { pgTable, text, varchar, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Export auth models (users and sessions tables for Replit Auth)
-export * from "./models/auth";
+// Import users table first
+import { users, sessions } from "./models/auth";
+
+// Re-export auth models
+export { users, sessions };
+export type { User, UpsertUser } from "./models/auth";
 
 // Categories for resolutions
 export const categories = [
