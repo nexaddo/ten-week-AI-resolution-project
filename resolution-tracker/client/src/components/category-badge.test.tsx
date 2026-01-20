@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@/test/test-utils";
 import { CategoryBadge } from "./category-badge";
-import { Category, categories } from "@shared/schema";
+import { categories } from "@shared/schema";
 
 describe("CategoryBadge", () => {
   it.each(categories)("renders %s category with correct text", (category) => {
