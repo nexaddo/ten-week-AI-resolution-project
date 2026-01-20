@@ -41,6 +41,10 @@ COPY script/backup-db.ts ./script/
 COPY script/restore-db.ts ./script/
 COPY script/migrate.ts ./script/
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Create backups directory
 RUN mkdir -p /app/backups
 
@@ -50,6 +54,9 @@ EXPOSE 5000
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
   CMD node -e "require('http').get('http://localhost:5000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"
+
+# Set entrypoint to run migrations before starting app
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Start application
 CMD ["node", "dist/index.js"]
