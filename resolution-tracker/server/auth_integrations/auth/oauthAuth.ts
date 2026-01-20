@@ -111,7 +111,7 @@ function isOidcProviderConfigured(provider: OidcProvider): boolean {
   return true;
 }
 
-function getConfiguredProviders(): Set<OAuthProvider> {
+export function getConfiguredProviders(): Set<OAuthProvider> {
   const providers = new Set<OAuthProvider>();
 
   (['google', 'apple', 'custom'] as OidcProvider[]).forEach((provider) => {

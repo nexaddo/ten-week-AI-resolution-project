@@ -59,6 +59,13 @@ export async function registerRoutes(
     }
   });
 
+  // Get configured OAuth providers (public, for login UI)
+  app.get("/api/auth/providers", async (_req, res) => {
+    const { getConfiguredProviders } = await import("./auth_integrations/auth/oauthAuth");
+    const providers = Array.from(getConfiguredProviders());
+    res.json({ providers });
+  });
+
   // Resolutions CRUD (protected routes)
   app.get("/api/resolutions", isAuthenticated, async (req: any, res) => {
     try {
