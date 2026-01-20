@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -63,6 +64,11 @@ app.use((req, res, next) => {
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    // Don't try to send response if headers already sent (e.g., from passport redirect)
+    if (res.headersSent) {
+      return;
+    }
+
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
@@ -84,6 +90,12 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
+  //
+  // Note: reusePort option is not used here for broader Node.js version compatibility.
+  // While reusePort can improve performance in clustered environments (Node.js >= 12.16.0),
+  // it has been omitted to ensure compatibility across different deployment environments.
+  // If you need to enable it for clustering, you can add { reusePort: true } as the fourth
+  // parameter to the listen() call, but verify your Node.js version supports it first.
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);

@@ -1,44 +1,118 @@
-# ten-week-AI-resolution-project
-ten week AI new year's resolution repo following https://aidbnewyear.com/program
+# 10-Week AI Resolution Project
 
-## Resolution Tracker
+This repository contains the Resolution Tracker application built as part of the [10-week AI New Year Bootcamp](https://aidbnewyear.com/program).
 
-A modern web application for tracking and managing your New Year's resolutions throughout the 10-week program.
+## 📁 Project Structure
 
-### Features
+```
+ten-week-AI-resolution-project/
+├── resolution-tracker/          # Main application
+│   ├── client/                  # React frontend
+│   ├── server/                  # Express backend
+│   ├── shared/                  # Shared code
+│   ├── script/                  # Utility scripts
+│   ├── docs/                    # 📚 Documentation
+│   ├── docker-compose.yml       # Docker orchestration
+│   ├── Dockerfile               # Container image
+│   └── README.md                # Application README
+└── README.md                    # This file
+```
 
-- **Dashboard**: Overview of all your resolutions and progress
-- **Resolution Management**: Add, edit, and track resolutions with categories
-- **Progress Tracking**: Check in on your resolutions and update progress
-- **Calendar View**: Visualize your check-ins and commitments over time
-- **Achievements**: Track milestones and celebrate wins
-- **Settings**: Customize your experience with theme and preferences
+## 🚀 Quick Start
 
-### Tech Stack
+```bash
+cd resolution-tracker
+npm install
+npm run dev
+```
 
-- **Frontend**: React + TypeScript
-- **Styling**: Tailwind CSS + Shadcn UI components
-- **Build Tool**: Vite
-- **Backend**: Node.js with Express
-- **Database**: SQLite with Drizzle ORM
+See [resolution-tracker/README.md](resolution-tracker/README.md) for detailed instructions.
+
+## 📚 Documentation
+
+All documentation is located in [`resolution-tracker/docs/`](resolution-tracker/docs/):
 
 ### Getting Started
+- **[Documentation Index](resolution-tracker/docs/README.md)** - Start here!
+- **[Local Setup](resolution-tracker/docs/SETUP_LOCAL.md)** - Development environment
+- **[OAuth Setup](resolution-tracker/docs/OAUTH_SETUP.md)** - Authentication config
+- **[Architecture](resolution-tracker/docs/ARCHITECTURE.md)** - System overview
 
-1. Install dependencies:
-   ```bash
-   cd Resolution\ Tracker
-   npm install
-   ```
+### Deployment
+- **[Quick Deploy](resolution-tracker/docs/DEPLOY_QUICK_START.md)** - 5-minute deployment
+- **[Synology NAS](resolution-tracker/docs/SYNOLOGY_DEPLOYMENT.md)** - Full guide
+- **[Checklist](resolution-tracker/docs/DEPLOYMENT_CHECKLIST.md)** - Verification steps
 
-2. Start the development server:
-   ```bash
-   npm run dev
-   ```
+### Database
+- **[Migrations](resolution-tracker/docs/MIGRATIONS_GUIDE.md)** - Schema management
+- **[Backups](resolution-tracker/docs/DATABASE_BACKUP.md)** - Backup procedures
 
-The app will be available at `http://localhost:5173`
+## ✨ Features
 
-### Project Structure
+- 📊 Resolution tracking with milestones
+- 🤖 AI-powered insights (Claude, GPT, Gemini)
+- 🧪 Prompt Playground for model comparison
+- 📈 Analytics dashboard
+- 🔐 OAuth authentication (Google, GitHub, Apple)
+- 🌓 Dark mode
+- 📱 Responsive design
 
-- `Resolution Tracker/client/` - React frontend application
-- `Resolution Tracker/server/` - Express backend and API routes
-- `Resolution Tracker/shared/` - Shared types and schemas
+## 🛠️ Tech Stack
+
+- **Frontend:** React 18, TypeScript, Tailwind CSS, shadcn/ui
+- **Backend:** Node.js, Express, TypeScript, PostgreSQL, Drizzle ORM
+- **AI:** Anthropic Claude, OpenAI GPT, Google Gemini
+- **Auth:** OAuth 2.0 (Google, GitHub, Apple)
+- **DevOps:** Docker, Docker Compose
+
+## 📅 Progress
+
+- **Week 1:** ✅ Basic resolution tracking + OAuth authentication
+- **Week 2:** ✅ AI model integration + Prompt Playground
+- **Week 3-10:** Coming soon...
+
+## 🗂️ Repository Organization
+
+This monorepo contains:
+- Main application in `resolution-tracker/`
+- Documentation in `resolution-tracker/docs/`
+- Scripts for development and deployment
+- Docker configuration for containerized deployment
+
+## 📖 Key Documentation
+
+### For Developers
+1. Start with [resolution-tracker/README.md](resolution-tracker/README.md)
+2. Follow [Local Setup Guide](resolution-tracker/docs/SETUP_LOCAL.md)
+3. Review [Architecture](resolution-tracker/docs/ARCHITECTURE.md)
+
+### For Deployment
+1. Read [Quick Deploy](resolution-tracker/docs/DEPLOY_QUICK_START.md)
+2. Follow [Synology Guide](resolution-tracker/docs/SYNOLOGY_DEPLOYMENT.md)
+3. Use [Checklist](resolution-tracker/docs/DEPLOYMENT_CHECKLIST.md)
+
+### For Database Management
+1. Learn [Migrations](resolution-tracker/docs/MIGRATIONS_GUIDE.md)
+2. Setup [Backups](resolution-tracker/docs/DATABASE_BACKUP.md)
+
+## 🤝 Contributing
+
+This is a personal learning project, but suggestions are welcome!
+
+## 📝 License
+
+MIT
+
+## 🙏 Acknowledgments
+
+- [AI New Year Bootcamp](https://aidbnewyear.com/program) - Project inspiration
+- [Anthropic](https://anthropic.com), [OpenAI](https://openai.com), [Google](https://ai.google.dev) - AI models
+- [shadcn/ui](https://ui.shadcn.com/) - UI components
+
+---
+
+**Main Application:** [resolution-tracker/](resolution-tracker/)
+
+**Documentation:** [resolution-tracker/docs/](resolution-tracker/docs/)
+
+**Get Started:** [resolution-tracker/docs/README.md](resolution-tracker/docs/README.md)

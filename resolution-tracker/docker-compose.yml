@@ -1,0 +1,87 @@
+version: '3.8'
+
+# Docker Compose looks for .env file by default in the same directory
+# Copy .env.nas.example to .env and fill in your secrets before running
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-resolutions
+    restart: always
+    environment:
+      POSTGRES_DB: resolutions
+      POSTGRES_USER: resolutions_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resolutions_user -d resolutions"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - resolution-network
+
+  # Resolution Tracker Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resolution-tracker
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://resolutions_user:${POSTGRES_PASSWORD}@postgres:5432/resolutions
+
+      # Server
+      NODE_ENV: production
+      PORT: 5000
+      HOST: ${HOST:-localhost}
+
+      # Session
+      SESSION_SECRET: ${SESSION_SECRET}
+
+      # OAuth (Google, GitHub, Apple)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID}
+      APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET}
+
+      # AI Model API Keys
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY}
+
+      # AI Configuration
+      AI_STRATEGY: ${AI_STRATEGY:-all}
+      AI_ENABLE_ANALYSIS: ${AI_ENABLE_ANALYSIS:-true}
+      AI_MAX_HISTORICAL_CHECKINS: ${AI_MAX_HISTORICAL_CHECKINS:-5}
+    volumes:
+      - ./backups:/app/backups
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+    networks:
+      - resolution-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  resolution-network:
+    driver: bridge

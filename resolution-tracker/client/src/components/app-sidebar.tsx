@@ -11,14 +11,16 @@ import {
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { 
-  LayoutDashboard, 
-  Target, 
-  FolderKanban, 
+import {
+  LayoutDashboard,
+  Target,
+  FolderKanban,
   Calendar,
   Trophy,
   Settings,
-  Sparkles
+  Sparkles,
+  Brain,
+  FlaskConical
 } from "lucide-react";
 import { categories, type Category } from "@shared/schema";
 import { categoryColors } from "@/lib/categories";
@@ -28,6 +30,8 @@ const mainNavItems = [
   { title: "All Resolutions", url: "/resolutions", icon: Target },
   { title: "Calendar", url: "/calendar", icon: Calendar },
   { title: "Achievements", url: "/achievements", icon: Trophy },
+  { title: "AI Analytics", url: "/ai-dashboard", icon: Brain },
+  { title: "Prompt Playground", url: "/prompt-playground", icon: FlaskConical },
 ];
 
 interface AppSidebarProps {
