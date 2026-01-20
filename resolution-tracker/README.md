@@ -1,5 +1,8 @@
 # Resolution Tracker
 
+[![CI/CD Pipeline](https://github.com/nexaddo/ten-week-AI-resolution-project/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/nexaddo/ten-week-AI-resolution-project/actions/workflows/ci-cd.yml)
+[![Coverage](https://img.shields.io/badge/coverage-view%20report-blue)](https://nexaddo.github.io/ten-week-AI-resolution-project/)
+
 A full-stack TypeScript application for tracking New Year's resolutions with AI-powered insights. Built with React, Express, PostgreSQL, and integrated with multiple AI models (Claude, GPT, Gemini) for intelligent progress analysis.
 
 ## ✨ Features
