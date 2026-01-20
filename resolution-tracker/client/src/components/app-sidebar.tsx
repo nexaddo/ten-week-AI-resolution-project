@@ -20,7 +20,8 @@ import {
   Settings,
   Sparkles,
   Brain,
-  FlaskConical
+  FlaskConical,
+  ExternalLink,
 } from "lucide-react";
 import { categories, type Category } from "@shared/schema";
 import { categoryColors } from "@/lib/categories";
@@ -119,6 +120,18 @@ export function AppSidebar({ selectedCategory, onCategorySelect }: AppSidebarPro
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <div className="mt-2 pt-2 border-t border-sidebar-border">
+          <a
+            href={`https://github.com/nexaddo/ten-week-AI-resolution-project/releases/${__APP_VERSION__ !== "dev" ? `tag/${__APP_VERSION__}` : ""}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            data-testid="version-link"
+          >
+            <span>{__APP_VERSION__}</span>
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

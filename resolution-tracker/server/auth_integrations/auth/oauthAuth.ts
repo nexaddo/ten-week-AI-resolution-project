@@ -310,10 +310,13 @@ export async function setupAuth(app: Express) {
   const isLocalhost = process.env.HOST === "localhost" || process.env.HOST === "127.0.0.1";
   const useSecureCookies = isProduction && !isLocalhost;
 
+  // __Host- prefix requires secure: true, so use a different name for non-secure contexts
+  const csrfCookieName = useSecureCookies ? "__Host-psifi.x-csrf-token" : "x-csrf-token";
+
   const { doubleCsrfProtection } = doubleCsrf({
     getSecret: () => process.env.SESSION_SECRET || "default-csrf-secret-change-in-production",
     getSessionIdentifier: (req) => req.session?.id || "",
-    cookieName: "__Host-psifi.x-csrf-token",
+    cookieName: csrfCookieName,
     cookieOptions: {
       sameSite: "lax",
       path: "/",
