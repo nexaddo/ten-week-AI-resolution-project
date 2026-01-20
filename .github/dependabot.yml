@@ -25,9 +25,6 @@ updates:
       # - dependency-name: "package-name"
     pull-request-branch-name:
       separator: "/"
-    # Auto-merge minor and patch updates for development dependencies
-    auto-merge:
-      enabled: false  # Set to true after testing first few PRs
   
   # Docker image updates
   - package-ecosystem: docker
