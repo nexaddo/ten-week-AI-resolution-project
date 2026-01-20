@@ -387,11 +387,12 @@ export async function setupAuth(app: Express) {
 
     const strategyName = `oidc:${provider}:${req.hostname}`;
     const callbackURL = getCallbackURL(req, provider);
+    const providerConfig = getOidcProviderConfig(provider);
 
     if (!registeredStrategies.has(strategyName)) {
       console.log(`🔐 Registering OIDC strategy for ${provider}`);
       console.log(`   Callback URL: ${callbackURL}`);
-      console.log(`   Client ID: ${config.clientId?.substring(0, 20)}...`);
+      console.log(`   Client ID: ${providerConfig.clientId?.substring(0, 20)}...`);
 
       const strategy = new Strategy(
         {
