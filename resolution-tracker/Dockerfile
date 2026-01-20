@@ -29,7 +29,9 @@ COPY package*.json ./
 
 # Install only production dependencies (keep tsx and drizzle-kit for migrations)
 # Use npm install instead of npm ci due to optional dependency sync issues
-RUN npm install --omit=dev --omit=optional && npm install -g tsx drizzle-kit
+RUN npm install --omit=dev --omit=optional && \
+    npm install -g tsx && \
+    npm install --save-dev drizzle-kit
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
