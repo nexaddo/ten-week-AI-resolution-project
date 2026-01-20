@@ -32,21 +32,21 @@ cd "$PROJECT_DIR" || {
 }
 
 # Get current image ID before pull
-OLD_IMAGE_ID=$(docker images -q "$IMAGE" 2>/dev/null)
+OLD_IMAGE_ID=$(sudo docker images -q "$IMAGE" 2>/dev/null)
 
 # Pull latest image (public - no auth needed)
 echo "[$TIMESTAMP] Pulling latest image..."
 echo "[$TIMESTAMP] Pulling latest image..." >> "$LOG_FILE"
-docker-compose pull 2>&1 | tee -a "$LOG_FILE"
+sudo docker-compose pull 2>&1 | tee -a "$LOG_FILE"
 
 # Get new image ID after pull
-NEW_IMAGE_ID=$(docker images -q "$IMAGE" 2>/dev/null)
+NEW_IMAGE_ID=$(sudo docker images -q "$IMAGE" 2>/dev/null)
 
 # Check if image changed
 if [ "$OLD_IMAGE_ID" != "$NEW_IMAGE_ID" ]; then
     echo "[$TIMESTAMP] 🔄 New image detected! Restarting containers..."
     echo "[$TIMESTAMP] 🔄 New image detected! Restarting containers..." >> "$LOG_FILE"
-    docker-compose up -d 2>&1 | tee -a "$LOG_FILE"
+    sudo docker-compose up -d 2>&1 | tee -a "$LOG_FILE"
     
     if [ $? -eq 0 ]; then
         echo "[$TIMESTAMP] ✅ Update completed successfully"
@@ -54,7 +54,7 @@ if [ "$OLD_IMAGE_ID" != "$NEW_IMAGE_ID" ]; then
         
         # Clean up old images
         echo "[$TIMESTAMP] 🗑️ Cleaning up old images..."
-        docker image prune -f >> "$LOG_FILE" 2>&1
+        sudo docker image prune -f >> "$LOG_FILE" 2>&1
         echo "[$TIMESTAMP] 🗑️ Cleaned up old images"
         echo "[$TIMESTAMP] 🗑️ Cleaned up old images" >> "$LOG_FILE"
     else
