@@ -41,6 +41,9 @@ services:
       # Server
       NODE_ENV: production
       PORT: 5000
+      # HOST should be set in .env file to match your domain
+      # Development: localhost
+      # Production: resolutions.glassbedprinting.synology.me
       HOST: ${HOST:-localhost}
 
       # Session
