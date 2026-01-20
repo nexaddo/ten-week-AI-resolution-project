@@ -36,7 +36,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./resolution-tracker
-        run: npm ci
+        run: npm install
 
       - name: TypeScript type check
         working-directory: ./resolution-tracker
@@ -153,7 +153,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./resolution-tracker
-        run: npm ci
+        run: npm install
 
       - name: Build application
         working-directory: ./resolution-tracker
