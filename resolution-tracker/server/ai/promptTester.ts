@@ -60,7 +60,7 @@ export class PromptTester {
     if (googleKey) {
       providers.set("google", {
         client: new GoogleGenerativeAI(googleKey),
-        name: "gemini-1.5-pro",
+        name: "gemini-2.0-flash",
         provider: "google",
       });
     }
