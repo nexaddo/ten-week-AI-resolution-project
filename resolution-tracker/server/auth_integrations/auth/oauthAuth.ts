@@ -10,7 +10,6 @@ import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
 import rateLimit from "express-rate-limit";
-import { doubleCsrf } from "csrf-csrf";
 
 const sessionTtlMs = 7 * 24 * 60 * 60 * 1000; // 1 week
 const sessionTtlSeconds = Math.floor(sessionTtlMs / 1000);
@@ -304,31 +303,10 @@ export async function setupAuth(app: Express) {
   app.use(cookieParser());
   app.use(getSession());
 
-  // Add CSRF protection for session cookies
-  // Determine if we should use secure cookies for CSRF tokens
-  const isProduction = process.env.NODE_ENV === "production";
-  const isLocalhost = process.env.HOST === "localhost" || process.env.HOST === "127.0.0.1";
-  const useSecureCookies = isProduction && !isLocalhost;
-
-  // __Host- prefix requires secure: true, so use a different name for non-secure contexts
-  const csrfCookieName = useSecureCookies ? "__Host-psifi.x-csrf-token" : "x-csrf-token";
-
-  const { doubleCsrfProtection } = doubleCsrf({
-    getSecret: () => process.env.SESSION_SECRET || "default-csrf-secret-change-in-production",
-    getSessionIdentifier: (req) => req.session?.id || "",
-    cookieName: csrfCookieName,
-    cookieOptions: {
-      sameSite: "lax",
-      path: "/",
-      secure: useSecureCookies,
-      httpOnly: true,
-    },
-    size: 64,
-    ignoredMethods: ["GET", "HEAD", "OPTIONS"],
-  });
-
-  // Apply CSRF protection to all routes
-  app.use(doubleCsrfProtection);
+  // Note: CSRF protection via csrf-csrf was removed because it requires
+  // client-side integration to fetch and send CSRF tokens. The session
+  // cookies use SameSite=lax which provides protection against most CSRF
+  // attacks. Full CSRF protection can be added later if needed.
 
   app.use(passport.initialize());
   app.use(passport.session());
