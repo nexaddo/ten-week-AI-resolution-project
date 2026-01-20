@@ -28,9 +28,11 @@ services:
 
   # Resolution Tracker Application
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/nexaddo/ten-week-ai-resolution-project:latest
+    # Uncomment below for local builds instead of pulling from GHCR:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: resolution-tracker
     restart: always
     depends_on:

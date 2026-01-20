@@ -142,9 +142,11 @@ function Deploy-ToNas {
     Write-Host "  2. Go to config: cd $projectsPath"
     Write-Host "  3. Create .env: cp .env.nas.example .env"
     Write-Host "  4. Edit secrets: nano .env (fill in all required values)"
-    Write-Host "  5. Pull image: docker-compose pull"
-    Write-Host "  6. Start services: docker-compose up -d"
-    Write-Host "  7. Check logs: docker-compose logs -f"
+    Write-Host "  5. Login to GHCR: echo \$GITHUB_TOKEN | docker login ghcr.io -u nexaddo --password-stdin"
+    Write-Host "     (Get token from: https://github.com/settings/tokens - needs read:packages scope)"
+    Write-Host "  6. Pull image: docker-compose pull"
+    Write-Host "  7. Start services: docker-compose up -d"
+    Write-Host "  8. Check logs: docker-compose logs -f"
 }
 
 # Main
