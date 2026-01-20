@@ -40,6 +40,7 @@ COPY drizzle.config.ts ./
 COPY script/backup-db.ts ./script/
 COPY script/restore-db.ts ./script/
 COPY script/migrate.ts ./script/
+COPY script/safe-db-push.ts ./script/
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
