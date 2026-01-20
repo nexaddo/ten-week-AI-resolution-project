@@ -421,7 +421,7 @@ export async function setupAuth(app: Express) {
   const authLimiter = process.env.NODE_ENV === "production"
     ? rateLimit({
         windowMs: 15 * 60 * 1000, // 15 minutes
-        max: 10, // strict limit for auth endpoints
+        max: 30, // 30 attempts per 15 minutes - balances security with usability
         standardHeaders: true,
         legacyHeaders: false,
         message: "Too many authentication attempts, please try again later.",
