@@ -30,17 +30,19 @@ async function buildServer() {
     banner: {
       js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
     },
+    // Exclude vite.ts from bundle - it's only loaded dynamically in development
+    external: ['./server/vite.ts', './server/vite.js', './vite.ts', './vite.js', './vite'],
   });
   
   // Copy shared files
   const distDir = resolve(__dirname, '..', 'dist');
   const sharedSrc = resolve(__dirname, '..', 'shared');
   const sharedDest = resolve(distDir, 'shared');
-  
+
   if (!existsSync(distDir)) {
     mkdirSync(distDir, { recursive: true });
   }
-  
+
   cpSync(sharedSrc, sharedDest, { recursive: true });
   console.log('✓ Server built successfully');
 }

@@ -1,4 +1,23 @@
-FROM node:18-alpine
+# Build stage - includes dev dependencies for building
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install ALL dependencies (including devDependencies needed for build)
+# Use npm install instead of npm ci due to optional dependency sync issues
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Build the application (client + server)
+RUN npm run build
+
+# Production stage - only runtime dependencies
+FROM node:20-alpine
 
 # Install PostgreSQL client for backups
 RUN apk add --no-cache postgresql-client
@@ -8,15 +27,16 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Install only production dependencies
+# Use npm install instead of npm ci due to optional dependency sync issues
+RUN npm install --omit=dev --omit=optional
 
-# Copy built application
-COPY dist ./dist
-COPY shared ./shared
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/shared ./shared
+
+# Copy configuration and scripts
 COPY drizzle.config.ts ./
-
-# Copy scripts for database operations
 COPY script/backup-db.ts ./script/
 COPY script/restore-db.ts ./script/
 COPY script/migrate.ts ./script/

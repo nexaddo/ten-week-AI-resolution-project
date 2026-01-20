@@ -197,6 +197,12 @@ export function getSession(): RequestHandler {
     ttl: sessionTtlMs,
     tableName: "sessions",
   });
+  // Determine if we should use secure cookies
+  // Only use secure cookies in production AND when not on localhost
+  const isProduction = process.env.NODE_ENV === "production";
+  const isLocalhost = process.env.HOST === "localhost" || process.env.HOST === "127.0.0.1";
+  const useSecureCookies = isProduction && !isLocalhost;
+
   const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
@@ -204,7 +210,8 @@ export function getSession(): RequestHandler {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: useSecureCookies,
+      sameSite: "lax",
       maxAge: sessionTtlMs,
     },
   });
@@ -296,6 +303,11 @@ export async function setupAuth(app: Express) {
   app.use(getSession());
 
   // Add CSRF protection for session cookies
+  // Determine if we should use secure cookies for CSRF tokens
+  const isProduction = process.env.NODE_ENV === "production";
+  const isLocalhost = process.env.HOST === "localhost" || process.env.HOST === "127.0.0.1";
+  const useSecureCookies = isProduction && !isLocalhost;
+
   const { doubleCsrfProtection } = doubleCsrf({
     getSecret: () => process.env.SESSION_SECRET || "default-csrf-secret-change-in-production",
     getSessionIdentifier: (req) => req.session?.id || "",
@@ -303,7 +315,7 @@ export async function setupAuth(app: Express) {
     cookieOptions: {
       sameSite: "lax",
       path: "/",
-      secure: process.env.NODE_ENV === "production",
+      secure: useSecureCookies,
       httpOnly: true,
     },
     size: 64,
@@ -374,12 +386,18 @@ export async function setupAuth(app: Express) {
     }
 
     const strategyName = `oidc:${provider}:${req.hostname}`;
+    const callbackURL = getCallbackURL(req, provider);
+
     if (!registeredStrategies.has(strategyName)) {
+      console.log(`🔐 Registering OIDC strategy for ${provider}`);
+      console.log(`   Callback URL: ${callbackURL}`);
+      console.log(`   Client ID: ${config.clientId?.substring(0, 20)}...`);
+
       const strategy = new Strategy(
         {
           name: strategyName,
           config,
-          callbackURL: getCallbackURL(req, provider),
+          callbackURL,
         },
         createVerifyOidc(provider)
       );
@@ -415,13 +433,16 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   // Rate limiter for authentication routes to prevent brute force attacks
-  const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // strict limit for auth endpoints
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: "Too many authentication attempts, please try again later.",
-  });
+  // Only enabled in production to allow easier testing in development
+  const authLimiter = process.env.NODE_ENV === "production"
+    ? rateLimit({
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 10, // strict limit for auth endpoints
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: "Too many authentication attempts, please try again later.",
+      })
+    : ((_req: any, _res: any, next: any) => next()); // No-op in development
 
   app.get("/api/login", authLimiter, async (req, res, next) => {
     const provider = resolveProvider(req.query.provider);
