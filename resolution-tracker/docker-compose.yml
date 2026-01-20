@@ -16,8 +16,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
-    ports:
-      - "5432:5432"
+    # Port mapping removed - only accessible within Docker network
+    # This avoids conflicts with host PostgreSQL
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U resolutions_user -d resolutions"]
       interval: 10s
@@ -29,10 +29,6 @@ services:
   # Resolution Tracker Application
   app:
     image: ghcr.io/nexaddo/ten-week-ai-resolution-project:latest
-    # Uncomment below for local builds instead of pulling from GHCR:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
     container_name: resolution-tracker
     restart: always
     depends_on:
@@ -70,7 +66,7 @@ services:
     volumes:
       - ./backups:/app/backups
     ports:
-      - "5000:5000"
+      - "5002:5000"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"]
       interval: 30s
