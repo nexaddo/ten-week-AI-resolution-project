@@ -4,6 +4,7 @@ import { Strategy, type VerifyFunction } from "openid-client/passport";
 import passport from "passport";
 import { Strategy as GitHubStrategy, type Profile as GitHubProfile } from "passport-github2";
 import session from "express-session";
+import cookieParser from "cookie-parser";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
@@ -300,6 +301,7 @@ function buildGithubClaims(profile: GitHubProfile): UserClaims {
 
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
+  app.use(cookieParser());
   app.use(getSession());
 
   // Add CSRF protection for session cookies
