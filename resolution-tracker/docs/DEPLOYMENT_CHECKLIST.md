@@ -6,98 +6,124 @@ Use this checklist when deploying to your Synology NAS or any production environ
 
 ### Local Environment
 - [ ] All features tested locally
-- [ ] Database migrations generated (`npm run db:migrate:generate`)
-- [ ] Environment variables documented
 - [ ] Build succeeds (`npm run build`)
 - [ ] TypeScript check passes (`npm run check`)
 - [ ] Health endpoint tested (`curl http://localhost:5000/api/health`)
 
 ### Synology NAS Setup
-- [ ] Docker installed on NAS
+- [ ] Container Manager installed on NAS
 - [ ] SSH access enabled
-- [ ] PostgreSQL container running
-- [ ] Database created and configured
-- [ ] Network ports configured (5000, 5432)
-- [ ] SSL certificate obtained (optional but recommended)
+- [ ] Project directory created (`/volume1/docker/resolution-tracker`)
+- [ ] Network ports available (5002 for app)
 
 ## Deployment Steps
 
-### 1. Prepare Environment File
-- [ ] Copy `.env.example` to `.env` on NAS
-- [ ] Update `DATABASE_URL` with NAS PostgreSQL credentials
-- [ ] Set `NODE_ENV=production`
-- [ ] Generate secure `SESSION_SECRET` (min 32 characters)
-- [ ] Configure OAuth redirect URLs for production domain
-- [ ] Add AI API keys
-- [ ] Review all environment variables
+### 1. Prepare Configuration
+- [ ] Copy `docker-compose.yml` to NAS
+- [ ] Copy `.env.nas.example` to NAS as `.env`
+- [ ] Fill in required environment variables:
+  - [ ] `POSTGRES_PASSWORD` - secure database password
+  - [ ] `SESSION_SECRET` - min 32 character secret
+  - [ ] `HOST` - your production domain
+  - [ ] GitHub OAuth credentials (SEPARATE production app!)
+  - [ ] Google OAuth credentials (can reuse dev)
+  - [ ] AI API keys (optional)
 
-### 2. Build and Deploy
-Choose one method:
+### 2. OAuth Setup
+**Critical: GitHub requires separate OAuth apps for dev/prod!**
+- [ ] Create production GitHub OAuth app
+  - Callback: `https://yourdomain.com/api/auth/github/callback`
+- [ ] Add production redirect URIs to Google (if using)
+  - Callback: `https://yourdomain.com/api/auth/google/callback`
 
-#### Option A: Automated Script
+### 3. Deploy
 ```bash
-./script/deploy-to-nas.sh [NAS_IP] [NAS_USER]
+cd /volume1/docker/resolution-tracker
+sudo docker-compose pull
+sudo docker-compose up -d
 ```
-- [ ] Script completed successfully
+- [ ] Images pulled successfully
+- [ ] Containers started
 - [ ] Health check passed
-
-#### Option B: Manual Deployment
-- [ ] Build application: `npm run build`
-- [ ] Transfer files to NAS via SCP
-- [ ] Build Docker image on NAS
-- [ ] Stop old container
-- [ ] Start new container
-- [ ] Verify health endpoint
-
-### 3. Database Migration
-- [ ] SSH into NAS
-- [ ] Run migrations: `sudo docker exec -it resolution-tracker npm run db:migrate`
-- [ ] Verify migration success
-- [ ] Test database connection
 
 ### 4. Configure Reverse Proxy
 - [ ] Create reverse proxy rule in DSM
-- [ ] Configure HTTPS with SSL certificate
-- [ ] Test external access
-- [ ] Verify OAuth callback URLs work
+- [ ] Source: HTTPS, your-domain.com, port 443
+- [ ] Destination: HTTP, localhost, port 5002
+- [ ] Custom headers added:
+  - [ ] `X-Forwarded-Proto: https`
+  - [ ] `X-Forwarded-Host: yourdomain.com`
+- [ ] WebSocket support enabled
+- [ ] SSL certificate configured (Let's Encrypt)
 
 ### 5. Set Up Backups
-- [ ] Create backup script on NAS
-- [ ] Configure daily backup task in DSM Task Scheduler
-- [ ] Test backup manually: `sudo docker exec resolution-tracker npm run db:backup`
+- [ ] Test manual backup: `sudo docker-compose exec app npm run db:backup`
+- [ ] Configure Task Scheduler for daily backups (see MIGRATIONS_AND_BACKUPS.md)
 - [ ] Verify backups directory is being populated
-- [ ] Test restore process
 
 ## Post-Deployment Verification
 
 ### Application Health
-- [ ] Access application via browser
-- [ ] Login with OAuth works
+- [ ] Access app via browser (internal IP)
+- [ ] Access app via domain (after reverse proxy)
+- [ ] OAuth login works (test each provider)
 - [ ] Create test resolution
 - [ ] Add test check-in
-- [ ] AI analysis generates insights
-- [ ] Prompt Playground accessible
-- [ ] AI Analytics dashboard shows data
+- [ ] AI analysis generates insights (if API keys set)
 
 ### Security Checks
-- [ ] HTTPS working (if configured)
-- [ ] HTTP redirects to HTTPS (if configured)
-- [ ] Database port (5432) not exposed to internet
-- [ ] Application logs don't show sensitive data
+- [ ] HTTPS working
+- [ ] HTTP redirects to HTTPS
+- [ ] OAuth callbacks working
 - [ ] Rate limiting active
-- [ ] Session management working correctly
+- [ ] Session management working
 
 ### Performance
 - [ ] Page load times acceptable
-- [ ] API responses < 500ms for most endpoints
-- [ ] Database queries optimized
+- [ ] API responses < 500ms
 - [ ] Health check responds quickly
 
-### Monitoring
-- [ ] Health endpoint accessible: `https://your-domain.com/api/health`
-- [ ] Application logs accessible: `sudo docker logs -f resolution-tracker`
-- [ ] Database logs accessible: `sudo docker logs -f postgres-resolutions`
-- [ ] Disk space monitored for backups directory
+## Maintenance Commands
+
+```bash
+# View logs
+sudo docker-compose logs -f
+
+# Restart
+sudo docker-compose restart
+
+# Update to new version
+sudo docker-compose pull && sudo docker-compose up -d
+
+# Backup database
+sudo docker-compose exec app npm run db:backup
+
+# Check container status
+sudo docker-compose ps
+```
+
+## Rollback Plan
+
+If deployment fails:
+```bash
+# Stop containers
+sudo docker-compose down
+
+# Check logs for issues
+sudo docker-compose logs --tail=100
+
+# If database issues, restore from backup
+sudo docker-compose exec app npm run db:restore
+```
+
+## Updates (Future Releases)
+
+When new releases are published:
+1. Check release notes for breaking changes
+2. Pull new image: `sudo docker-compose pull`
+3. Restart: `sudo docker-compose up -d`
+4. Migrations run automatically
+5. Verify health endpoint
 - [ ] Set up alerts for container failures (optional)
 
 ## Rollback Plan
