@@ -6,8 +6,10 @@
 
 import { execSync } from "child_process";
 import { existsSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKUP_DIR = join(__dirname, "..", "backups");
 const BACKUP_SCRIPT = join(__dirname, "backup-db.ts");
 
