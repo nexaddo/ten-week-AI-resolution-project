@@ -1,5 +1,8 @@
 # 10-Week AI Resolution Project
 
+[![CI/CD Pipeline](https://github.com/nexaddo/ten-week-AI-resolution-project/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/nexaddo/ten-week-AI-resolution-project/actions/workflows/ci-cd.yml)
+[![Coverage](https://img.shields.io/badge/coverage-report-blue)](https://nexaddo.github.io/ten-week-AI-resolution-project/)
+
 This repository contains the Resolution Tracker application built as part of the [10-week AI New Year Bootcamp](https://aidbnewyear.com/program).
 
 ## 📁 Project Structure
@@ -47,15 +50,23 @@ All documentation is located in [`resolution-tracker/docs/`](resolution-tracker/
 - **[Migrations](resolution-tracker/docs/MIGRATIONS_GUIDE.md)** - Schema management
 - **[Backups](resolution-tracker/docs/DATABASE_BACKUP.md)** - Backup procedures
 
-## ✨ Features
+## 📱 Resolution Tracker
 
-- 📊 Resolution tracking with milestones
-- 🤖 AI-powered insights (Claude, GPT, Gemini)
-- 🧪 Prompt Playground for model comparison
-- 📈 Analytics dashboard
+The Resolution Tracker is a full-stack web application for tracking New Year's resolutions with AI-powered insights.
+
+### Live Reports
+- **[Test Coverage Report](https://nexaddo.github.io/ten-week-AI-resolution-project/)** - Detailed code coverage metrics published to GitHub Pages
+
+### ✨ Features
+
+- 📊 Resolution tracking with milestones and check-ins
+- 🤖 AI-powered insights using Claude, GPT, and Gemini
+- 🧪 Prompt Playground for comparing AI model responses
+- 📈 Analytics dashboard with progress visualization
 - 🔐 OAuth authentication (Google, GitHub, Apple)
-- 🌓 Dark mode
-- 📱 Responsive design
+- 🌓 Light/dark mode support
+- 📱 Responsive design for mobile and desktop
+- 🐳 Docker deployment with automated CI/CD
 
 ## 🛠️ Tech Stack
 
