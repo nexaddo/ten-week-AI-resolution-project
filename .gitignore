@@ -419,3 +419,4 @@ FodyWeavers.xsd
 resolution-tracker/dist
 resolution-tracker/backups
 resolution-tracker/.env.nas
+.claude/settings.local.json
