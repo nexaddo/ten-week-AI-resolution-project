@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { FaGoogle, FaGithub, FaApple } from "react-icons/fa";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 
 interface AuthProviderDialogProps {
   children: React.ReactNode;
@@ -31,10 +30,14 @@ export function AuthProviderDialog({
   title = "Choose Sign In Method",
   description = "Select a provider to continue"
 }: AuthProviderDialogProps) {
-  const { data: providersData } = useQuery({
+  const { data: providersData, isLoading } = useQuery({
     queryKey: ["/api/auth/providers"],
     queryFn: async () => {
-      return apiRequest<{ providers: OAuthProvider[] }>("/api/auth/providers");
+      const response = await fetch("/api/auth/providers");
+      if (!response.ok) {
+        return { providers: [] };
+      }
+      return response.json() as Promise<{ providers: OAuthProvider[] }>;
     },
   });
 
