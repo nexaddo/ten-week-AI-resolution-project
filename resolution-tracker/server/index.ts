@@ -7,6 +7,10 @@ import { createServer } from "http";
 const app = express();
 const httpServer = createServer(app);
 
+// Trust proxy - required for OAuth callbacks behind reverse proxy
+// This allows Express to correctly read X-Forwarded-* headers from Synology
+app.set("trust proxy", true);
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
