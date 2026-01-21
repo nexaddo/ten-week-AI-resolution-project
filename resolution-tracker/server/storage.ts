@@ -242,8 +242,17 @@ export class MemStorage implements IStorage {
   }): Promise<AiModelUsage[]> {
     let results = Array.from(this.aiModelUsage.values());
 
+    // Debug logging
+    console.log(`[AI Stats Debug] Total aiModelUsage entries: ${results.length}`);
+    console.log(`[AI Stats Debug] Total checkIns: ${this.checkIns.size}`);
+    console.log(`[AI Stats Debug] Total resolutions: ${this.resolutions.size}`);
+    console.log(`[AI Stats Debug] Filter userId: ${filters?.userId}`);
+
     // Filter by userId (need to join with checkIns and resolutions)
     if (filters?.userId) {
+      const userResolutions = Array.from(this.resolutions.values()).filter(r => r.userId === filters.userId);
+      console.log(`[AI Stats Debug] User's resolutions: ${userResolutions.length}`);
+
       const userCheckInIds = new Set(
         Array.from(this.checkIns.values())
           .filter((c) => {
@@ -252,7 +261,10 @@ export class MemStorage implements IStorage {
           })
           .map((c) => c.id)
       );
+      console.log(`[AI Stats Debug] User's checkIn IDs: ${Array.from(userCheckInIds).join(', ')}`);
+
       results = results.filter((u) => userCheckInIds.has(u.checkInId));
+      console.log(`[AI Stats Debug] Filtered results: ${results.length}`);
     }
 
     // Filter by model name
