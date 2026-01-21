@@ -10,6 +10,51 @@ import { users, sessions } from "./models/auth";
 export { users, sessions };
 export type { User, UpsertUser } from "./models/auth";
 
+// Import and re-export model map types
+export {
+  aiModels,
+  aiTools,
+  userModels,
+  userTools,
+  useCases,
+  userUseCases,
+  modelTests,
+  modelTestResults,
+  modelRecommendations,
+  useCaseCategories,
+  insertAiModelSchema,
+  insertAiToolSchema,
+  insertUserModelSchema,
+  insertUserToolSchema,
+  insertUseCaseSchema,
+  insertUserUseCaseSchema,
+  insertModelTestSchema,
+  insertModelTestResultSchema,
+  insertModelRecommendationSchema,
+} from "./models/modelMap";
+
+export type {
+  AiModel,
+  InsertAiModel,
+  AiTool,
+  InsertAiTool,
+  UserModel,
+  InsertUserModel,
+  UserTool,
+  InsertUserTool,
+  UseCase,
+  InsertUseCase,
+  UseCaseCategory,
+  UserUseCase,
+  InsertUserUseCase,
+  ModelTest,
+  InsertModelTest,
+  ModelTestResult,
+  InsertModelTestResult,
+  ModelRecommendation,
+  InsertModelRecommendation,
+} from "./models/modelMap";
+
 // Categories for resolutions
 export const categories = [
   "Health & Fitness",

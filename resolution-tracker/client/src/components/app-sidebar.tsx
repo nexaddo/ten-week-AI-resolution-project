@@ -22,6 +22,10 @@ import {
   Brain,
   FlaskConical,
   ExternalLink,
+  Map,
+  BookOpen,
+  Beaker,
+  Cpu,
 } from "lucide-react";
 import { categories, type Category } from "@shared/schema";
 import { categoryColors } from "@/lib/categories";
@@ -33,6 +37,13 @@ const mainNavItems = [
   { title: "Achievements", url: "/achievements", icon: Trophy },
   { title: "AI Analytics", url: "/ai-dashboard", icon: Brain },
   { title: "Prompt Playground", url: "/prompt-playground", icon: FlaskConical },
+];
+
+const modelMapItems = [
+  { title: "My Map", url: "/model-map", icon: Map },
+  { title: "Use Cases", url: "/model-map/use-cases", icon: BookOpen },
+  { title: "Test Lab", url: "/model-map/test-lab", icon: Beaker },
+  { title: "My Models", url: "/model-map/my-models", icon: Cpu },
 ];
 
 interface AppSidebarProps {
@@ -64,6 +75,28 @@ export function AppSidebar({ selectedCategory, onCategorySelect }: AppSidebarPro
                     asChild 
                     isActive={location === item.url}
                     data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Model Map</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {modelMapItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={location === item.url || (item.url === "/model-map" && location === "/model-map/my-map")}
+                    data-testid={`nav-model-map-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                   >
                     <Link href={item.url}>
                       <item.icon className="h-4 w-4" />
