@@ -70,10 +70,20 @@ export class PromptTester {
 
   async testPrompt(
     promptTestId: string,
-    request: PromptTestRequest
+    request: PromptTestRequest,
+    selectedModels?: string[]
   ): Promise<void> {
+    // Filter providers based on selected models if provided
+    let providersToTest = Array.from(this.providers.entries());
+    
+    if (selectedModels && selectedModels.length > 0) {
+      providersToTest = providersToTest.filter(([key, config]) => 
+        selectedModels.includes(config.name) || selectedModels.includes(key)
+      );
+    }
+
     // Run tests in parallel
-    const testPromises = Array.from(this.providers.entries()).map(
+    const testPromises = providersToTest.map(
       ([key, config]) => this.testWithProvider(promptTestId, key, config, request)
     );
 
