@@ -13,8 +13,17 @@ import {
   type InsertPromptTest,
   type PromptTestResult,
   type InsertPromptTestResult,
+  resolutions,
+  milestones,
+  checkIns,
+  aiInsights,
+  aiModelUsage,
+  promptTests,
+  promptTestResults,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and, gte, lte, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Resolutions (user-scoped)
@@ -378,4 +387,266 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Database-backed storage implementation using Drizzle ORM
+export class DbStorage implements IStorage {
+  // Resolutions (user-scoped)
+  async getResolutions(userId: string): Promise<Resolution[]> {
+    return await db.select().from(resolutions).where(eq(resolutions.userId, userId));
+  }
+
+  async getResolution(id: string, userId: string): Promise<Resolution | undefined> {
+    const [resolution] = await db
+      .select()
+      .from(resolutions)
+      .where(and(eq(resolutions.id, id), eq(resolutions.userId, userId)));
+    return resolution;
+  }
+
+  async createResolution(insertResolution: InsertResolution & { userId: string }): Promise<Resolution> {
+    const [resolution] = await db
+      .insert(resolutions)
+      .values({
+        ...insertResolution,
+        progress: insertResolution.progress ?? 0,
+        status: insertResolution.status ?? "not_started",
+      })
+      .returning();
+    return resolution;
+  }
+
+  async updateResolution(id: string, updates: Partial<InsertResolution>, userId: string): Promise<Resolution | undefined> {
+    const [updated] = await db
+      .update(resolutions)
+      .set(updates)
+      .where(and(eq(resolutions.id, id), eq(resolutions.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteResolution(id: string, userId: string): Promise<boolean> {
+    // First check if the resolution exists and belongs to the user
+    const resolution = await this.getResolution(id, userId);
+    if (!resolution) return false;
+
+    // Delete related milestones
+    await db.delete(milestones).where(eq(milestones.resolutionId, id));
+    
+    // Delete related check-ins and their AI insights/usage
+    const relatedCheckIns = await db
+      .select({ id: checkIns.id })
+      .from(checkIns)
+      .where(eq(checkIns.resolutionId, id));
+    
+    const checkInIds = relatedCheckIns.map(c => c.id);
+    if (checkInIds.length > 0) {
+      await db.delete(aiInsights).where(inArray(aiInsights.checkInId, checkInIds));
+      await db.delete(aiModelUsage).where(inArray(aiModelUsage.checkInId, checkInIds));
+      await db.delete(checkIns).where(eq(checkIns.resolutionId, id));
+    }
+    
+    // Delete the resolution
+    const result = await db.delete(resolutions).where(eq(resolutions.id, id));
+    return true;
+  }
+
+  // Milestones
+  async getMilestones(resolutionId: string): Promise<Milestone[]> {
+    return await db.select().from(milestones).where(eq(milestones.resolutionId, resolutionId));
+  }
+
+  async createMilestone(insertMilestone: InsertMilestone): Promise<Milestone> {
+    const [milestone] = await db
+      .insert(milestones)
+      .values({
+        ...insertMilestone,
+        completed: insertMilestone.completed ?? false,
+      })
+      .returning();
+    return milestone;
+  }
+
+  async updateMilestone(id: string, updates: Partial<InsertMilestone>): Promise<Milestone | undefined> {
+    const [updated] = await db
+      .update(milestones)
+      .set(updates)
+      .where(eq(milestones.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteMilestone(id: string): Promise<boolean> {
+    const result = await db.delete(milestones).where(eq(milestones.id, id));
+    return true;
+  }
+
+  async getMilestone(id: string): Promise<Milestone | undefined> {
+    const [milestone] = await db.select().from(milestones).where(eq(milestones.id, id));
+    return milestone;
+  }
+
+  // Check-ins
+  async getCheckIns(userId: string): Promise<CheckIn[]> {
+    // Get check-ins for resolutions owned by this user
+    const userResolutions = await db
+      .select({ id: resolutions.id })
+      .from(resolutions)
+      .where(eq(resolutions.userId, userId));
+    
+    const resolutionIds = userResolutions.map(r => r.id);
+    if (resolutionIds.length === 0) return [];
+    
+    return await db
+      .select()
+      .from(checkIns)
+      .where(inArray(checkIns.resolutionId, resolutionIds));
+  }
+
+  async getCheckInsByResolution(resolutionId: string): Promise<CheckIn[]> {
+    return await db.select().from(checkIns).where(eq(checkIns.resolutionId, resolutionId));
+  }
+
+  async getCheckIn(id: string): Promise<CheckIn | undefined> {
+    const [checkIn] = await db.select().from(checkIns).where(eq(checkIns.id, id));
+    return checkIn;
+  }
+
+  async createCheckIn(insertCheckIn: InsertCheckIn): Promise<CheckIn> {
+    const [checkIn] = await db.insert(checkIns).values(insertCheckIn).returning();
+    return checkIn;
+  }
+
+  // AI Insights
+  async getAiInsightsByCheckIn(checkInId: string): Promise<AiInsight[]> {
+    return await db.select().from(aiInsights).where(eq(aiInsights.checkInId, checkInId));
+  }
+
+  async createAiInsight(insertAiInsight: InsertAiInsight): Promise<AiInsight> {
+    const [insight] = await db.insert(aiInsights).values(insertAiInsight).returning();
+    return insight;
+  }
+
+  // AI Model Usage
+  async getAiModelUsageByCheckIn(checkInId: string): Promise<AiModelUsage[]> {
+    return await db.select().from(aiModelUsage).where(eq(aiModelUsage.checkInId, checkInId));
+  }
+
+  async getAiModelUsageStats(filters?: {
+    userId?: string;
+    modelName?: string;
+    provider?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<AiModelUsage[]> {
+    let query = db.select().from(aiModelUsage);
+    
+    // Build conditions array
+    const conditions = [];
+    
+    // Filter by userId (need to join with checkIns and resolutions)
+    if (filters?.userId) {
+      const userResolutions = await db
+        .select({ id: resolutions.id })
+        .from(resolutions)
+        .where(eq(resolutions.userId, filters.userId));
+      
+      const resolutionIds = userResolutions.map(r => r.id);
+      if (resolutionIds.length === 0) return [];
+      
+      const userCheckIns = await db
+        .select({ id: checkIns.id })
+        .from(checkIns)
+        .where(inArray(checkIns.resolutionId, resolutionIds));
+      
+      const checkInIds = userCheckIns.map(c => c.id);
+      if (checkInIds.length === 0) return [];
+      
+      conditions.push(inArray(aiModelUsage.checkInId, checkInIds));
+    }
+    
+    // Filter by model name
+    if (filters?.modelName) {
+      conditions.push(eq(aiModelUsage.modelName, filters.modelName));
+    }
+    
+    // Filter by provider
+    if (filters?.provider) {
+      conditions.push(eq(aiModelUsage.provider, filters.provider));
+    }
+    
+    // Filter by date range
+    if (filters?.startDate) {
+      conditions.push(gte(aiModelUsage.createdAt, new Date(filters.startDate)));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(aiModelUsage.createdAt, new Date(filters.endDate)));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query;
+  }
+
+  async createAiModelUsage(insertAiModelUsage: InsertAiModelUsage): Promise<AiModelUsage> {
+    const [usage] = await db.insert(aiModelUsage).values(insertAiModelUsage).returning();
+    return usage;
+  }
+
+  // Prompt Tests
+  async getPromptTests(userId: string): Promise<PromptTest[]> {
+    return await db.select().from(promptTests).where(eq(promptTests.userId, userId));
+  }
+
+  async getPromptTest(id: string, userId: string): Promise<PromptTest | undefined> {
+    const [test] = await db
+      .select()
+      .from(promptTests)
+      .where(and(eq(promptTests.id, id), eq(promptTests.userId, userId)));
+    return test;
+  }
+
+  async createPromptTest(insertPromptTest: InsertPromptTest & { userId: string }): Promise<PromptTest> {
+    const [test] = await db.insert(promptTests).values(insertPromptTest).returning();
+    return test;
+  }
+
+  async deletePromptTest(id: string, userId: string): Promise<boolean> {
+    const test = await this.getPromptTest(id, userId);
+    if (!test) return false;
+    
+    // Delete related results
+    await db.delete(promptTestResults).where(eq(promptTestResults.promptTestId, id));
+    
+    // Delete the test
+    await db.delete(promptTests).where(eq(promptTests.id, id));
+    return true;
+  }
+
+  // Prompt Test Results
+  async getPromptTestResults(promptTestId: string): Promise<PromptTestResult[]> {
+    return await db
+      .select()
+      .from(promptTestResults)
+      .where(eq(promptTestResults.promptTestId, promptTestId));
+  }
+
+  async createPromptTestResult(insertResult: InsertPromptTestResult): Promise<PromptTestResult> {
+    const [result] = await db.insert(promptTestResults).values(insertResult).returning();
+    return result;
+  }
+
+  async updatePromptTestResult(
+    id: string,
+    updates: { userRating?: number; userComment?: string }
+  ): Promise<PromptTestResult | undefined> {
+    const [updated] = await db
+      .update(promptTestResults)
+      .set(updates)
+      .where(eq(promptTestResults.id, id))
+      .returning();
+    return updated;
+  }
+}
+
+export const storage = new DbStorage();
