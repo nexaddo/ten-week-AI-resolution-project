@@ -7,6 +7,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as dotenv from "dotenv";
 import { testCaseTemplates } from "../shared/schema.js";
+import { eq } from "drizzle-orm";
 
 dotenv.config();
 
@@ -207,7 +208,7 @@ async function seedTemplates() {
 
   try {
     // Check if templates already exist
-    const existing = await db.select().from(testCaseTemplates).where({ isBuiltIn: true });
+    const existing = await db.select().from(testCaseTemplates).where(eq(testCaseTemplates.isBuiltIn, true));
     
     if (existing.length > 0) {
       console.log(`⚠️  Found ${existing.length} existing built-in templates`);

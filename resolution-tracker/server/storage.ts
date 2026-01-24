@@ -890,8 +890,9 @@ export class DbStorage implements IStorage {
   async deleteModelFavorite(id: string, userId: string): Promise<boolean> {
     const result = await db
       .delete(modelFavorites)
-      .where(and(eq(modelFavorites.id, id), eq(modelFavorites.userId, userId)));
-    return true;
+      .where(and(eq(modelFavorites.id, id), eq(modelFavorites.userId, userId)))
+      .returning();
+    return result.length > 0;
   }
 
   // Tool Favorites
@@ -910,8 +911,9 @@ export class DbStorage implements IStorage {
   async deleteToolFavorite(id: string, userId: string): Promise<boolean> {
     const result = await db
       .delete(toolFavorites)
-      .where(and(eq(toolFavorites.id, id), eq(toolFavorites.userId, userId)));
-    return true;
+      .where(and(eq(toolFavorites.id, id), eq(toolFavorites.userId, userId)))
+      .returning();
+    return result.length > 0;
   }
 }
 
