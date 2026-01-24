@@ -35,6 +35,34 @@ async function isAdmin(req: any, res: any, next: any) {
   }
 }
 
+// Middleware to track API performance metrics
+function apiMetricsMiddleware(req: any, res: any, next: any) {
+  const startTime = Date.now();
+  
+  // Store original end function
+  const originalEnd = res.end;
+  
+  // Override end function to log metrics
+  res.end = function(...args: any[]) {
+    const responseTime = Date.now() - startTime;
+    const userId = req.user?.claims?.sub || null;
+    
+    // Log the metric asynchronously (don't block response)
+    storage.logApiMetric({
+      userId,
+      endpoint: req.path,
+      method: req.method,
+      statusCode: res.statusCode,
+      responseTimeMs: responseTime,
+    }).catch((err) => log(`Failed to log API metric: ${err}`));
+    
+    // Call original end function
+    return originalEnd.apply(res, args);
+  };
+  
+  next();
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -53,6 +81,9 @@ export async function registerRoutes(
 
   // Apply global rate limiting to all API routes
   app.use("/api", apiLimiter);
+  
+  // Apply performance tracking to all API routes
+  app.use("/api", apiMetricsMiddleware);
 
   // Rate limiter for milestone-related routes to mitigate abuse
   const milestoneLimiter = rateLimit({
@@ -553,6 +584,60 @@ export async function registerRoutes(
     } catch (error) {
       log(`Failed to fetch activity log: ${error}`);
       res.status(500).json({ error: "Failed to fetch activity log" });
+    }
+  });
+
+  // Get API performance metrics
+  app.get("/api/analytics/performance", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // Only admins can see all performance metrics, regular users see their own
+      const targetUserId = user?.role === "admin" && !req.query.userId ? undefined : userId;
+      
+      const metrics = await storage.getApiMetrics({ userId: targetUserId });
+      res.json(metrics);
+    } catch (error) {
+      log(`Failed to fetch performance metrics: ${error}`);
+      res.status(500).json({ error: "Failed to fetch performance metrics" });
+    }
+  });
+
+  // Get page view statistics
+  app.get("/api/analytics/pageviews", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // Only admins can see all page views, regular users see their own
+      const targetUserId = user?.role === "admin" && !req.query.userId ? undefined : userId;
+      
+      const stats = await storage.getPageViewStats({ userId: targetUserId });
+      res.json(stats);
+    } catch (error) {
+      log(`Failed to fetch page view stats: ${error}`);
+      res.status(500).json({ error: "Failed to fetch page view stats" });
+    }
+  });
+
+  // Log page view (called from frontend)
+  app.post("/api/analytics/pageview", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { path, referrer } = req.body;
+      
+      await storage.logPageView({
+        userId,
+        path,
+        referrer: referrer || null,
+        userAgent: req.get('user-agent') || null,
+      });
+      
+      res.status(201).json({ success: true });
+    } catch (error) {
+      log(`Failed to log page view: ${error}`);
+      res.status(500).json({ error: "Failed to log page view" });
     }
   });
 

@@ -18,6 +18,7 @@ import PromptPlayground from "@/pages/prompt-playground";
 import { Landing } from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
+import { usePageViewTracking } from "@/hooks/use-page-view-tracking";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -80,6 +81,9 @@ function UserMenu() {
 
 function AuthenticatedApp() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  
+  // Track page views for analytics
+  usePageViewTracking();
 
   const style = {
     "--sidebar-width": "16rem",
