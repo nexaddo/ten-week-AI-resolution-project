@@ -363,6 +363,9 @@ export class MemStorage implements IStorage {
       id,
       systemPrompt: insertPromptTest.systemPrompt ?? null,
       category: insertPromptTest.category ?? null,
+      templateId: insertPromptTest.templateId ?? null,
+      tags: insertPromptTest.tags ?? null,
+      selectedModels: insertPromptTest.selectedModels ?? null,
       createdAt: new Date(),
     };
     this.promptTests.set(id, promptTest);
@@ -438,9 +441,11 @@ export class MemStorage implements IStorage {
     const template: PromptTemplate = {
       ...insertTemplate,
       id,
+      systemPrompt: insertTemplate.systemPrompt ?? null,
       createdBy: insertTemplate.createdBy ?? null,
       suggestedModels: insertTemplate.suggestedModels ?? null,
       tags: insertTemplate.tags ?? null,
+      isPublic: insertTemplate.isPublic ?? true,
       createdAt: new Date(),
     };
     this.promptTemplates.set(id, template);
@@ -473,6 +478,7 @@ export class MemStorage implements IStorage {
     const config: TestCaseConfig = {
       ...insertConfig,
       id,
+      enabled: insertConfig.enabled ?? true,
       customParameters: insertConfig.customParameters ?? null,
       createdAt: new Date(),
     };
