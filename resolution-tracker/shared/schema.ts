@@ -178,3 +178,92 @@ export const insertPromptTestResultSchema = createInsertSchema(promptTestResults
 
 export type InsertPromptTestResult = z.infer<typeof insertPromptTestResultSchema>;
 export type PromptTestResult = typeof promptTestResults.$inferSelect;
+
+// Prompt use case types
+export const promptUseCaseTypes = [
+  "writing",
+  "research",
+  "coding",
+  "analysis",
+  "creative",
+  "technical",
+  "general",
+] as const;
+export type PromptUseCaseType = (typeof promptUseCaseTypes)[number];
+
+// Test Case Templates - library of predefined prompt templates
+export const testCaseTemplates = pgTable("test_case_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  useCaseType: text("use_case_type").notNull(), // writing, research, coding, etc.
+  systemPrompt: text("system_prompt"),
+  examplePrompt: text("example_prompt").notNull(),
+  suggestedModels: text("suggested_models"), // JSON array of model names
+  suggestedTools: text("suggested_tools"), // JSON array of tool names
+  isBuiltIn: boolean("is_built_in").default(true).notNull(), // true for predefined, false for user-created
+  userId: varchar("user_id").references(() => users.id), // null for built-in templates
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTestCaseTemplateSchema = createInsertSchema(testCaseTemplates).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTestCaseTemplate = z.infer<typeof insertTestCaseTemplateSchema>;
+export type TestCaseTemplate = typeof testCaseTemplates.$inferSelect;
+
+// Test Case Configurations - specific model/tool selections for each test
+export const testCaseConfigurations = pgTable("test_case_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promptTestId: varchar("prompt_test_id").notNull().references(() => promptTests.id),
+  selectedModels: text("selected_models").notNull(), // JSON array of model names
+  selectedTools: text("selected_tools"), // JSON array of tool identifiers
+  templateId: varchar("template_id").references(() => testCaseTemplates.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTestCaseConfigurationSchema = createInsertSchema(testCaseConfigurations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTestCaseConfiguration = z.infer<typeof insertTestCaseConfigurationSchema>;
+export type TestCaseConfiguration = typeof testCaseConfigurations.$inferSelect;
+
+// Model Favorites - user's favorite models
+export const modelFavorites = pgTable("model_favorites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  modelName: text("model_name").notNull(),
+  provider: text("provider").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertModelFavoriteSchema = createInsertSchema(modelFavorites).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertModelFavorite = z.infer<typeof insertModelFavoriteSchema>;
+export type ModelFavorite = typeof modelFavorites.$inferSelect;
+
+// Tool Favorites - user's favorite tools
+export const toolFavorites = pgTable("tool_favorites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  toolIdentifier: text("tool_identifier").notNull(), // e.g., "code_interpreter", "web_search"
+  toolName: text("tool_name").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertToolFavoriteSchema = createInsertSchema(toolFavorites).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertToolFavorite = z.infer<typeof insertToolFavoriteSchema>;
+export type ToolFavorite = typeof toolFavorites.$inferSelect;
