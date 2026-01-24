@@ -12,6 +12,7 @@ import { Dashboard } from "@/pages/dashboard";
 import { Achievements } from "@/pages/achievements";
 import { CalendarView } from "@/pages/calendar-view";
 import { Settings } from "@/pages/settings";
+import { Analytics } from "@/pages/analytics";
 import { AIDashboard } from "@/pages/ai-dashboard";
 import PromptPlayground from "@/pages/prompt-playground";
 import { Landing } from "@/pages/landing";
@@ -31,6 +32,7 @@ function Router({ selectedCategory }: { selectedCategory: Category | null }) {
       <Route path="/resolutions" component={() => <Dashboard selectedCategory={selectedCategory} />} />
       <Route path="/calendar" component={CalendarView} />
       <Route path="/achievements" component={Achievements} />
+      <Route path="/analytics" component={Analytics} />
       <Route path="/ai-dashboard" component={AIDashboard} />
       <Route path="/prompt-playground" component={PromptPlayground} />
       <Route path="/settings" component={Settings} />
