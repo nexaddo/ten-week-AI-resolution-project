@@ -13,6 +13,12 @@ import {
   type InsertPromptTest,
   type PromptTestResult,
   type InsertPromptTestResult,
+  type PromptTemplate,
+  type InsertPromptTemplate,
+  type TestCaseConfig,
+  type InsertTestCaseConfig,
+  type UserFavorite,
+  type InsertUserFavorite,
   resolutions,
   milestones,
   checkIns,
@@ -20,6 +26,9 @@ import {
   aiModelUsage,
   promptTests,
   promptTestResults,
+  promptTemplates,
+  testCaseConfigs,
+  userFavorites,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -74,6 +83,25 @@ export interface IStorage {
     id: string,
     updates: { userRating?: number; userComment?: string }
   ): Promise<PromptTestResult | undefined>;
+
+  // Prompt Templates
+  getPromptTemplates(category?: string): Promise<PromptTemplate[]>;
+  getPromptTemplate(id: string): Promise<PromptTemplate | undefined>;
+  createPromptTemplate(template: InsertPromptTemplate): Promise<PromptTemplate>;
+  updatePromptTemplate(id: string, template: Partial<InsertPromptTemplate>): Promise<PromptTemplate | undefined>;
+  deletePromptTemplate(id: string): Promise<boolean>;
+
+  // Test Case Configs
+  getTestCaseConfigs(promptTestId: string): Promise<TestCaseConfig[]>;
+  createTestCaseConfig(config: InsertTestCaseConfig): Promise<TestCaseConfig>;
+  updateTestCaseConfig(id: string, config: Partial<InsertTestCaseConfig>): Promise<TestCaseConfig | undefined>;
+  deleteTestCaseConfig(id: string): Promise<boolean>;
+
+  // User Favorites
+  getUserFavorites(userId: string, favoriteType?: string): Promise<UserFavorite[]>;
+  getFavorite(userId: string, favoriteType: string, favoriteId: string): Promise<UserFavorite | undefined>;
+  createFavorite(favorite: InsertUserFavorite & { userId: string }): Promise<UserFavorite>;
+  deleteFavorite(id: string, userId: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -84,6 +112,9 @@ export class MemStorage implements IStorage {
   private aiModelUsage: Map<string, AiModelUsage>;
   private promptTests: Map<string, PromptTest>;
   private promptTestResults: Map<string, PromptTestResult>;
+  private promptTemplates: Map<string, PromptTemplate>;
+  private testCaseConfigs: Map<string, TestCaseConfig>;
+  private userFavorites: Map<string, UserFavorite>;
 
   constructor() {
     this.resolutions = new Map();
@@ -93,6 +124,9 @@ export class MemStorage implements IStorage {
     this.aiModelUsage = new Map();
     this.promptTests = new Map();
     this.promptTestResults = new Map();
+    this.promptTemplates = new Map();
+    this.testCaseConfigs = new Map();
+    this.userFavorites = new Map();
   }
 
   // Resolutions (user-scoped)
@@ -385,6 +419,115 @@ export class MemStorage implements IStorage {
     this.promptTestResults.set(id, updated);
     return updated;
   }
+
+  // Prompt Templates
+  async getPromptTemplates(category?: string): Promise<PromptTemplate[]> {
+    const templates = Array.from(this.promptTemplates.values());
+    if (category) {
+      return templates.filter(t => t.category === category);
+    }
+    return templates;
+  }
+
+  async getPromptTemplate(id: string): Promise<PromptTemplate | undefined> {
+    return this.promptTemplates.get(id);
+  }
+
+  async createPromptTemplate(insertTemplate: InsertPromptTemplate): Promise<PromptTemplate> {
+    const id = randomUUID();
+    const template: PromptTemplate = {
+      ...insertTemplate,
+      id,
+      createdBy: insertTemplate.createdBy ?? null,
+      suggestedModels: insertTemplate.suggestedModels ?? null,
+      tags: insertTemplate.tags ?? null,
+      createdAt: new Date(),
+    };
+    this.promptTemplates.set(id, template);
+    return template;
+  }
+
+  async updatePromptTemplate(id: string, updates: Partial<InsertPromptTemplate>): Promise<PromptTemplate | undefined> {
+    const existing = this.promptTemplates.get(id);
+    if (!existing) return undefined;
+
+    const updated: PromptTemplate = {
+      ...existing,
+      ...updates,
+    };
+    this.promptTemplates.set(id, updated);
+    return updated;
+  }
+
+  async deletePromptTemplate(id: string): Promise<boolean> {
+    return this.promptTemplates.delete(id);
+  }
+
+  // Test Case Configs
+  async getTestCaseConfigs(promptTestId: string): Promise<TestCaseConfig[]> {
+    return Array.from(this.testCaseConfigs.values()).filter(c => c.promptTestId === promptTestId);
+  }
+
+  async createTestCaseConfig(insertConfig: InsertTestCaseConfig): Promise<TestCaseConfig> {
+    const id = randomUUID();
+    const config: TestCaseConfig = {
+      ...insertConfig,
+      id,
+      customParameters: insertConfig.customParameters ?? null,
+      createdAt: new Date(),
+    };
+    this.testCaseConfigs.set(id, config);
+    return config;
+  }
+
+  async updateTestCaseConfig(id: string, updates: Partial<InsertTestCaseConfig>): Promise<TestCaseConfig | undefined> {
+    const existing = this.testCaseConfigs.get(id);
+    if (!existing) return undefined;
+
+    const updated: TestCaseConfig = {
+      ...existing,
+      ...updates,
+    };
+    this.testCaseConfigs.set(id, updated);
+    return updated;
+  }
+
+  async deleteTestCaseConfig(id: string): Promise<boolean> {
+    return this.testCaseConfigs.delete(id);
+  }
+
+  // User Favorites
+  async getUserFavorites(userId: string, favoriteType?: string): Promise<UserFavorite[]> {
+    const favorites = Array.from(this.userFavorites.values()).filter(f => f.userId === userId);
+    if (favoriteType) {
+      return favorites.filter(f => f.favoriteType === favoriteType);
+    }
+    return favorites;
+  }
+
+  async getFavorite(userId: string, favoriteType: string, favoriteId: string): Promise<UserFavorite | undefined> {
+    return Array.from(this.userFavorites.values()).find(
+      f => f.userId === userId && f.favoriteType === favoriteType && f.favoriteId === favoriteId
+    );
+  }
+
+  async createFavorite(insertFavorite: InsertUserFavorite & { userId: string }): Promise<UserFavorite> {
+    const id = randomUUID();
+    const favorite: UserFavorite = {
+      ...insertFavorite,
+      id,
+      metadata: insertFavorite.metadata ?? null,
+      createdAt: new Date(),
+    };
+    this.userFavorites.set(id, favorite);
+    return favorite;
+  }
+
+  async deleteFavorite(id: string, userId: string): Promise<boolean> {
+    const favorite = this.userFavorites.get(id);
+    if (!favorite || favorite.userId !== userId) return false;
+    return this.userFavorites.delete(id);
+  }
 }
 
 // Database-backed storage implementation using Drizzle ORM
@@ -646,6 +789,112 @@ export class DbStorage implements IStorage {
       .where(eq(promptTestResults.id, id))
       .returning();
     return updated;
+  }
+
+  // Prompt Templates
+  async getPromptTemplates(category?: string): Promise<PromptTemplate[]> {
+    if (category) {
+      return await db
+        .select()
+        .from(promptTemplates)
+        .where(eq(promptTemplates.category, category));
+    }
+    return await db.select().from(promptTemplates);
+  }
+
+  async getPromptTemplate(id: string): Promise<PromptTemplate | undefined> {
+    const [template] = await db
+      .select()
+      .from(promptTemplates)
+      .where(eq(promptTemplates.id, id));
+    return template;
+  }
+
+  async createPromptTemplate(insertTemplate: InsertPromptTemplate): Promise<PromptTemplate> {
+    const [template] = await db.insert(promptTemplates).values(insertTemplate).returning();
+    return template;
+  }
+
+  async updatePromptTemplate(id: string, updates: Partial<InsertPromptTemplate>): Promise<PromptTemplate | undefined> {
+    const [updated] = await db
+      .update(promptTemplates)
+      .set(updates)
+      .where(eq(promptTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePromptTemplate(id: string): Promise<boolean> {
+    const [deleted] = await db.delete(promptTemplates).where(eq(promptTemplates.id, id)).returning();
+    return deleted !== undefined;
+  }
+
+  // Test Case Configs
+  async getTestCaseConfigs(promptTestId: string): Promise<TestCaseConfig[]> {
+    return await db
+      .select()
+      .from(testCaseConfigs)
+      .where(eq(testCaseConfigs.promptTestId, promptTestId));
+  }
+
+  async createTestCaseConfig(insertConfig: InsertTestCaseConfig): Promise<TestCaseConfig> {
+    const [config] = await db.insert(testCaseConfigs).values(insertConfig).returning();
+    return config;
+  }
+
+  async updateTestCaseConfig(id: string, updates: Partial<InsertTestCaseConfig>): Promise<TestCaseConfig | undefined> {
+    const [updated] = await db
+      .update(testCaseConfigs)
+      .set(updates)
+      .where(eq(testCaseConfigs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTestCaseConfig(id: string): Promise<boolean> {
+    const [deleted] = await db.delete(testCaseConfigs).where(eq(testCaseConfigs.id, id)).returning();
+    return deleted !== undefined;
+  }
+
+  // User Favorites
+  async getUserFavorites(userId: string, favoriteType?: string): Promise<UserFavorite[]> {
+    if (favoriteType) {
+      return await db
+        .select()
+        .from(userFavorites)
+        .where(and(eq(userFavorites.userId, userId), eq(userFavorites.favoriteType, favoriteType)));
+    }
+    return await db
+      .select()
+      .from(userFavorites)
+      .where(eq(userFavorites.userId, userId));
+  }
+
+  async getFavorite(userId: string, favoriteType: string, favoriteId: string): Promise<UserFavorite | undefined> {
+    const [favorite] = await db
+      .select()
+      .from(userFavorites)
+      .where(
+        and(
+          eq(userFavorites.userId, userId),
+          eq(userFavorites.favoriteType, favoriteType),
+          eq(userFavorites.favoriteId, favoriteId)
+        )
+      );
+    return favorite;
+  }
+
+  async createFavorite(insertFavorite: InsertUserFavorite & { userId: string }): Promise<UserFavorite> {
+    const [favorite] = await db.insert(userFavorites).values(insertFavorite).returning();
+    return favorite;
+  }
+
+  async deleteFavorite(id: string, userId: string): Promise<boolean> {
+    const [deleted] = await db
+      .delete(userFavorites)
+      .where(and(eq(userFavorites.id, id), eq(userFavorites.userId, userId)))
+      .returning();
+    return deleted !== undefined;
   }
 }
 
