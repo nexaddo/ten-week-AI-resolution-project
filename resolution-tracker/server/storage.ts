@@ -764,16 +764,16 @@ export class DbStorage implements IStorage {
     const resolutionIds = userResolutions.map((r) => r.id);
 
     // Get check-ins count
-    const checkInsQuery = resolutionIds.length > 0
-      ? db.select().from(checkIns).where(inArray(checkIns.resolutionId, resolutionIds))
-      : [];
-    const userCheckIns = Array.isArray(checkInsQuery) ? [] : await checkInsQuery;
+    let userCheckIns: CheckIn[] = [];
+    if (resolutionIds.length > 0) {
+      userCheckIns = await db.select().from(checkIns).where(inArray(checkIns.resolutionId, resolutionIds));
+    }
 
     // Get milestones
-    const milestonesQuery = resolutionIds.length > 0
-      ? db.select().from(milestones).where(inArray(milestones.resolutionId, resolutionIds))
-      : [];
-    const userMilestones = Array.isArray(milestonesQuery) ? [] : await milestonesQuery;
+    let userMilestones: Milestone[] = [];
+    if (resolutionIds.length > 0) {
+      userMilestones = await db.select().from(milestones).where(inArray(milestones.resolutionId, resolutionIds));
+    }
 
     // Get recent activities
     const recentActivities = userId
