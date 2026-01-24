@@ -120,15 +120,22 @@ export function TemplateLibraryDialog({ open, onOpenChange, onSelectTemplate }: 
                           <p className="text-sm text-muted-foreground mt-1">
                             {template.description}
                           </p>
-                          {template.tags && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {JSON.parse(template.tags).map((tag: string) => (
-                                <Badge key={tag} variant="secondary" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
+                          {template.tags && (() => {
+                            try {
+                              const tags = JSON.parse(template.tags);
+                              return (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {tags.map((tag: string) => (
+                                    <Badge key={tag} variant="secondary" className="text-xs">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              );
+                            } catch (e) {
+                              return null;
+                            }
+                          })()}
                           {template.systemPrompt && (
                             <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
                               System: {template.systemPrompt}
