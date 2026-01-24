@@ -10,6 +10,30 @@ import { PromptTester } from "./ai/promptTester";
 import type { ModelSelectionStrategy } from "./ai/types";
 import { log } from "./index";
 import { pool } from "./db";
+import { db } from "./db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+// Middleware to check if user is admin
+async function isAdmin(req: any, res: any, next: any) {
+  try {
+    const userId = req.user?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden: Admin access required" });
+    }
+
+    next();
+  } catch (error) {
+    log(`Admin check failed: ${error}`);
+    res.status(500).json({ error: "Failed to verify admin status" });
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -95,6 +119,16 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const parsed = insertResolutionSchema.parse(req.body);
       const resolution = await storage.createResolution({ ...parsed, userId });
+      
+      // Log activity
+      await storage.logUserActivity({
+        userId,
+        action: "resolution_created",
+        entityType: "resolution",
+        entityId: resolution.id,
+        metadata: JSON.stringify({ title: resolution.title, category: resolution.category }),
+      });
+      
       res.status(201).json(resolution);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -280,6 +314,15 @@ export async function registerRoutes(
           (process.env.AI_STRATEGY as ModelSelectionStrategy) || "all"
         );
       }
+
+      // Log activity
+      await storage.logUserActivity({
+        userId,
+        action: "check_in_added",
+        entityType: "check_in",
+        entityId: checkIn.id,
+        metadata: JSON.stringify({ resolutionId: parsed.resolutionId }),
+      });
 
       res.status(201).json(checkIn);
     } catch (error) {
@@ -477,6 +520,56 @@ export async function registerRoutes(
     } catch (error) {
       log(`Failed to delete prompt test: ${error}`);
       res.status(500).json({ error: "Failed to delete prompt test" });
+    }
+  });
+
+  // Analytics routes (protected)
+  
+  // Get analytics stats - user can see their own, admins can see all
+  app.get("/api/analytics/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // If user is admin and no specific user requested, show global stats
+      const targetUserId = user?.role === "admin" && !req.query.userId ? undefined : userId;
+      
+      const stats = await storage.getAnalyticsStats(targetUserId);
+      res.json(stats);
+    } catch (error) {
+      log(`Failed to fetch analytics stats: ${error}`);
+      res.status(500).json({ error: "Failed to fetch analytics stats" });
+    }
+  });
+
+  // Get user activity log
+  app.get("/api/analytics/activity", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      
+      const activities = await storage.getUserActivityLog(userId, limit);
+      res.json(activities);
+    } catch (error) {
+      log(`Failed to fetch activity log: ${error}`);
+      res.status(500).json({ error: "Failed to fetch activity log" });
+    }
+  });
+
+  // Get current user info including role
+  app.get("/api/user/me", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      log(`Failed to fetch user info: ${error}`);
+      res.status(500).json({ error: "Failed to fetch user info" });
     }
   });
 

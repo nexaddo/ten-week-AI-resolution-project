@@ -13,6 +13,8 @@ import {
   type InsertPromptTest,
   type PromptTestResult,
   type InsertPromptTestResult,
+  type UserActivityLog,
+  type InsertUserActivityLog,
   resolutions,
   milestones,
   checkIns,
@@ -20,10 +22,11 @@ import {
   aiModelUsage,
   promptTests,
   promptTestResults,
+  userActivityLog,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, desc, count, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Resolutions (user-scoped)
@@ -74,6 +77,19 @@ export interface IStorage {
     id: string,
     updates: { userRating?: number; userComment?: string }
   ): Promise<PromptTestResult | undefined>;
+
+  // Analytics / Activity Tracking
+  logUserActivity(activity: InsertUserActivityLog): Promise<UserActivityLog>;
+  getUserActivityLog(userId: string, limit?: number): Promise<UserActivityLog[]>;
+  getAnalyticsStats(userId?: string): Promise<{
+    totalResolutions: number;
+    completedResolutions: number;
+    inProgressResolutions: number;
+    totalCheckIns: number;
+    totalMilestones: number;
+    completedMilestones: number;
+    recentActivities: UserActivityLog[];
+  }>;
 }
 
 export class MemStorage implements IStorage {
@@ -84,6 +100,7 @@ export class MemStorage implements IStorage {
   private aiModelUsage: Map<string, AiModelUsage>;
   private promptTests: Map<string, PromptTest>;
   private promptTestResults: Map<string, PromptTestResult>;
+  private activityLog: Map<string, UserActivityLog>;
 
   constructor() {
     this.resolutions = new Map();
@@ -93,6 +110,7 @@ export class MemStorage implements IStorage {
     this.aiModelUsage = new Map();
     this.promptTests = new Map();
     this.promptTestResults = new Map();
+    this.activityLog = new Map();
   }
 
   // Resolutions (user-scoped)
@@ -385,6 +403,68 @@ export class MemStorage implements IStorage {
     this.promptTestResults.set(id, updated);
     return updated;
   }
+
+  // Analytics / Activity Tracking
+  async logUserActivity(insertActivity: InsertUserActivityLog): Promise<UserActivityLog> {
+    const id = randomUUID();
+    const activity: UserActivityLog = {
+      ...insertActivity,
+      id,
+      entityType: insertActivity.entityType ?? null,
+      entityId: insertActivity.entityId ?? null,
+      metadata: insertActivity.metadata ?? null,
+      createdAt: new Date(),
+    };
+    this.activityLog.set(id, activity);
+    return activity;
+  }
+
+  async getUserActivityLog(userId: string, limit: number = 50): Promise<UserActivityLog[]> {
+    return Array.from(this.activityLog.values())
+      .filter((a) => a.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+
+  async getAnalyticsStats(userId?: string): Promise<{
+    totalResolutions: number;
+    completedResolutions: number;
+    inProgressResolutions: number;
+    totalCheckIns: number;
+    totalMilestones: number;
+    completedMilestones: number;
+    recentActivities: UserActivityLog[];
+  }> {
+    const userResolutions = userId
+      ? Array.from(this.resolutions.values()).filter((r) => r.userId === userId)
+      : Array.from(this.resolutions.values());
+
+    const resolutionIds = new Set(userResolutions.map((r) => r.id));
+    
+    const userCheckIns = Array.from(this.checkIns.values()).filter((c) =>
+      resolutionIds.has(c.resolutionId)
+    );
+    
+    const userMilestones = Array.from(this.milestones.values()).filter((m) =>
+      resolutionIds.has(m.resolutionId)
+    );
+
+    const recentActivities = userId
+      ? await this.getUserActivityLog(userId, 10)
+      : Array.from(this.activityLog.values())
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, 10);
+
+    return {
+      totalResolutions: userResolutions.length,
+      completedResolutions: userResolutions.filter((r) => r.status === "completed").length,
+      inProgressResolutions: userResolutions.filter((r) => r.status === "in_progress").length,
+      totalCheckIns: userCheckIns.length,
+      totalMilestones: userMilestones.length,
+      completedMilestones: userMilestones.filter((m) => m.completed).length,
+      recentActivities,
+    };
+  }
 }
 
 // Database-backed storage implementation using Drizzle ORM
@@ -646,6 +726,73 @@ export class DbStorage implements IStorage {
       .where(eq(promptTestResults.id, id))
       .returning();
     return updated;
+  }
+
+  // Analytics / Activity Tracking
+  async logUserActivity(insertActivity: InsertUserActivityLog): Promise<UserActivityLog> {
+    const [activity] = await db
+      .insert(userActivityLog)
+      .values(insertActivity)
+      .returning();
+    return activity;
+  }
+
+  async getUserActivityLog(userId: string, limit: number = 50): Promise<UserActivityLog[]> {
+    return await db
+      .select()
+      .from(userActivityLog)
+      .where(eq(userActivityLog.userId, userId))
+      .orderBy(desc(userActivityLog.createdAt))
+      .limit(limit);
+  }
+
+  async getAnalyticsStats(userId?: string): Promise<{
+    totalResolutions: number;
+    completedResolutions: number;
+    inProgressResolutions: number;
+    totalCheckIns: number;
+    totalMilestones: number;
+    completedMilestones: number;
+    recentActivities: UserActivityLog[];
+  }> {
+    // Get resolution stats
+    const resolutionQuery = userId
+      ? db.select().from(resolutions).where(eq(resolutions.userId, userId))
+      : db.select().from(resolutions);
+    
+    const userResolutions = await resolutionQuery;
+    const resolutionIds = userResolutions.map((r) => r.id);
+
+    // Get check-ins count
+    const checkInsQuery = resolutionIds.length > 0
+      ? db.select().from(checkIns).where(inArray(checkIns.resolutionId, resolutionIds))
+      : [];
+    const userCheckIns = Array.isArray(checkInsQuery) ? [] : await checkInsQuery;
+
+    // Get milestones
+    const milestonesQuery = resolutionIds.length > 0
+      ? db.select().from(milestones).where(inArray(milestones.resolutionId, resolutionIds))
+      : [];
+    const userMilestones = Array.isArray(milestonesQuery) ? [] : await milestonesQuery;
+
+    // Get recent activities
+    const recentActivities = userId
+      ? await this.getUserActivityLog(userId, 10)
+      : await db
+          .select()
+          .from(userActivityLog)
+          .orderBy(desc(userActivityLog.createdAt))
+          .limit(10);
+
+    return {
+      totalResolutions: userResolutions.length,
+      completedResolutions: userResolutions.filter((r) => r.status === "completed").length,
+      inProgressResolutions: userResolutions.filter((r) => r.status === "in_progress").length,
+      totalCheckIns: userCheckIns.length,
+      totalMilestones: userMilestones.length,
+      completedMilestones: userMilestones.filter((m) => m.completed).length,
+      recentActivities,
+    };
   }
 }
 

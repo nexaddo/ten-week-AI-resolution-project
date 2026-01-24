@@ -4,11 +4,11 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Import users table first
-import { users, sessions } from "./models/auth";
+import { users, sessions, userRoles, type UserRole } from "./models/auth";
 
 // Re-export auth models
-export { users, sessions };
-export type { User, UpsertUser } from "./models/auth";
+export { users, sessions, userRoles };
+export type { User, UpsertUser, UserRole } from "./models/auth";
 
 // Categories for resolutions
 export const categories = [
@@ -178,3 +178,22 @@ export const insertPromptTestResultSchema = createInsertSchema(promptTestResults
 
 export type InsertPromptTestResult = z.infer<typeof insertPromptTestResultSchema>;
 export type PromptTestResult = typeof promptTestResults.$inferSelect;
+
+// User Activity Log - tracks user actions for analytics
+export const userActivityLog = pgTable("user_activity_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  action: text("action").notNull(), // e.g., "resolution_created", "check_in_added", "milestone_completed"
+  entityType: text("entity_type"), // e.g., "resolution", "milestone", "check_in"
+  entityId: varchar("entity_id"), // ID of the related entity
+  metadata: text("metadata"), // JSON string for additional data
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserActivityLogSchema = createInsertSchema(userActivityLog).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertUserActivityLog = z.infer<typeof insertUserActivityLogSchema>;
+export type UserActivityLog = typeof userActivityLog.$inferSelect;
