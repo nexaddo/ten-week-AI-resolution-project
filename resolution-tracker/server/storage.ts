@@ -445,8 +445,8 @@ export class DbStorage implements IStorage {
     }
     
     // Delete the resolution
-    const result = await db.delete(resolutions).where(eq(resolutions.id, id));
-    return true;
+    const [deleted] = await db.delete(resolutions).where(eq(resolutions.id, id)).returning();
+    return deleted !== undefined;
   }
 
   // Milestones
@@ -475,8 +475,8 @@ export class DbStorage implements IStorage {
   }
 
   async deleteMilestone(id: string): Promise<boolean> {
-    const result = await db.delete(milestones).where(eq(milestones.id, id));
-    return true;
+    const [deleted] = await db.delete(milestones).where(eq(milestones.id, id)).returning();
+    return deleted !== undefined;
   }
 
   async getMilestone(id: string): Promise<Milestone | undefined> {
@@ -582,7 +582,7 @@ export class DbStorage implements IStorage {
     }
     
     if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
+      return await query.where(and(...conditions));
     }
     
     return await query;
@@ -619,8 +619,8 @@ export class DbStorage implements IStorage {
     await db.delete(promptTestResults).where(eq(promptTestResults.promptTestId, id));
     
     // Delete the test
-    await db.delete(promptTests).where(eq(promptTests.id, id));
-    return true;
+    const [deleted] = await db.delete(promptTests).where(eq(promptTests.id, id)).returning();
+    return deleted !== undefined;
   }
 
   // Prompt Test Results
