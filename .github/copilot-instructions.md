@@ -98,6 +98,33 @@ Both commands must complete successfully before telling the user that work is co
 - No regressions introduced by changes
 - After the checks pass, create a git commit with a clear, descriptive message and push it to the current branch before declaring the work complete.
 
+## Shell and OS Compatibility
+
+**Before running any shell commands**, check the user's OS from the environment info:
+- **Windows**: Use PowerShell syntax (available shells: PowerShell, cmd)
+  - PowerShell string escaping: Use single quotes `'...'` for literal strings with backticks
+  - Use `@'...'@` (here-strings) for multi-line strings with special characters
+  - Backticks are escape characters in PowerShell (e.g., `` `n `` = newline)
+  - Use double quotes with escaping only when variable interpolation is needed
+- **macOS/Linux**: Use bash/zsh syntax
+  - Standard bash string escaping with single/double quotes
+  - Use `\` for escaping special characters
+
+**Command format examples**:
+```powershell
+# PowerShell (Windows)
+Get-ChildItem -Path "C:\folder"
+$env:VAR = "value"
+'String with `backticks` needs single quotes'
+```
+
+```bash
+# Bash (macOS/Linux)
+ls -la /folder
+export VAR="value"
+echo "String with \$variable"
+```
+
 ## Critical Details
 - **No authentication currently implemented** (passport imported but unused)
 - **In-memory storage**: data lost on server restart; migration to database pending

@@ -18,7 +18,7 @@ updates:
     allow:
       - dependency-type: "production"
       - dependency-type: "development"
-    ignore:
+    #ignore:
       # Add any packages you want to manually manage
       # - dependency-name: "package-name"
     pull-request-branch-name:
