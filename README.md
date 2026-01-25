@@ -42,6 +42,15 @@ See [.devcontainer/README.md](.devcontainer/README.md) for detailed instructions
 
 ### Local Development
 
+**Prerequisites:**
+
+- Node.js 20+
+- PostgreSQL 16 (running via Docker or locally)
+- PostgreSQL client tools (for `pg_dump` backups)
+  - Windows: [Download installer](https://www.postgresql.org/download/windows/), select "Command Line Tools"
+  - macOS: `brew install libpq && brew link --force libpq`
+  - Linux: `sudo apt install postgresql-client`
+
 ```bash
 cd resolution-tracker
 npm install
