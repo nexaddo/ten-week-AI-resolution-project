@@ -577,8 +577,13 @@ export async function registerRoutes(
 
   app.get("/api/test-case-templates/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const template = await storage.getTestCaseTemplate(req.params.id);
       if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      // Non-built-in templates should only be accessible to their creator
+      if (!template.isBuiltIn && template.userId !== userId) {
         return res.status(404).json({ error: "Template not found" });
       }
       res.json(template);
@@ -647,6 +652,12 @@ export async function registerRoutes(
   // Test Case Configurations
   app.get("/api/test-case-configurations/:promptTestId", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      // Verify user owns the prompt test
+      const test = await storage.getPromptTest(req.params.promptTestId, userId);
+      if (!test) {
+        return res.status(404).json({ error: "Test configuration not found" });
+      }
       const config = await storage.getTestCaseConfiguration(req.params.promptTestId);
       res.json(config);
     } catch (error) {
@@ -657,7 +668,13 @@ export async function registerRoutes(
 
   app.post("/api/test-case-configurations", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const parsed = insertTestCaseConfigurationSchema.parse(req.body);
+      // Verify user owns the prompt test before creating config
+      const test = await storage.getPromptTest(parsed.promptTestId, userId);
+      if (!test) {
+        return res.status(404).json({ error: "Prompt test not found" });
+      }
       const config = await storage.createTestCaseConfiguration(parsed);
       res.status(201).json(config);
     } catch (error) {
@@ -797,7 +814,10 @@ export async function registerRoutes(
         stats.totalTests++;
         if (result.status === 'success') stats.successCount++;
         stats.avgLatency += result.latencyMs;
-        stats.totalCost += parseFloat(result.estimatedCost);
+        const estimatedCost = Number.parseFloat(result.estimatedCost);
+        if (!Number.isNaN(estimatedCost)) {
+          stats.totalCost += estimatedCost;
+        }
         if (result.userRating) {
           stats.avgRating += result.userRating;
           stats.ratingCount++;
@@ -809,7 +829,7 @@ export async function registerRoutes(
       // Calculate averages
       const analytics = Array.from(modelStats.values()).map(stats => ({
         ...stats,
-        avgLatency: Math.round(stats.avgLatency / stats.totalTests),
+        avgLatency: stats.totalTests > 0 ? Math.round(stats.avgLatency / stats.totalTests) : 0,
         successRate: stats.totalTests > 0 ? (stats.successCount / stats.totalTests) * 100 : 0,
         avgRating: stats.ratingCount > 0 ? stats.avgRating / stats.ratingCount : 0,
       }));

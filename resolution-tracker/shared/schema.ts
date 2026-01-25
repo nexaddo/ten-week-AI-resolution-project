@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -202,13 +202,15 @@ export const testCaseTemplates = pgTable("test_case_templates", {
   suggestedModels: text("suggested_models"), // JSON array of model names
   suggestedTools: text("suggested_tools"), // JSON array of tool names
   isBuiltIn: boolean("is_built_in").default(true).notNull(), // true for predefined, false for user-created
-  userId: varchar("user_id").references(() => users.id), // null for built-in templates
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // null for built-in templates
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertTestCaseTemplateSchema = createInsertSchema(testCaseTemplates).omit({
   id: true,
   createdAt: true,
+}).extend({
+  useCaseType: z.enum(promptUseCaseTypes),
 });
 
 export type InsertTestCaseTemplate = z.infer<typeof insertTestCaseTemplateSchema>;
@@ -217,7 +219,9 @@ export type TestCaseTemplate = typeof testCaseTemplates.$inferSelect;
 // Test Case Configurations - specific model/tool selections for each test
 export const testCaseConfigurations = pgTable("test_case_configurations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  promptTestId: varchar("prompt_test_id").notNull().references(() => promptTests.id),
+  promptTestId: varchar("prompt_test_id")
+    .notNull()
+    .references(() => promptTests.id, { onDelete: "cascade" }),
   selectedModels: text("selected_models").notNull(), // JSON array of model names
   selectedTools: text("selected_tools"), // JSON array of tool identifiers
   templateId: varchar("template_id").references(() => testCaseTemplates.id),
@@ -235,12 +239,14 @@ export type TestCaseConfiguration = typeof testCaseConfigurations.$inferSelect;
 // Model Favorites - user's favorite models
 export const modelFavorites = pgTable("model_favorites", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   modelName: text("model_name").notNull(),
   provider: text("provider").notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex("model_favorites_user_model_provider_idx").on(table.userId, table.modelName, table.provider),
+]);
 
 export const insertModelFavoriteSchema = createInsertSchema(modelFavorites).omit({
   id: true,
@@ -253,12 +259,14 @@ export type ModelFavorite = typeof modelFavorites.$inferSelect;
 // Tool Favorites - user's favorite tools
 export const toolFavorites = pgTable("tool_favorites", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   toolIdentifier: text("tool_identifier").notNull(), // e.g., "code_interpreter", "web_search"
   toolName: text("tool_name").notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex("tool_favorites_user_tool_idx").on(table.userId, table.toolIdentifier),
+]);
 
 export const insertToolFavoriteSchema = createInsertSchema(toolFavorites).omit({
   id: true,

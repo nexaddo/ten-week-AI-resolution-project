@@ -8,16 +8,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, ThumbsUp, Star, BookOpen, BarChart3, Heart } from "lucide-react";
+import { Loader2, Sparkles, ThumbsUp, Star, BookOpen, Heart } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { AVAILABLE_MODELS, AVAILABLE_TOOLS, getProviderColor } from "@/lib/models";
+import { AVAILABLE_MODELS, getProviderColor } from "@/lib/models";
 import type { 
   PromptTest, 
   PromptTestResult, 
   TestCaseTemplate, 
-  ModelFavorite, 
-  ToolFavorite 
+  ModelFavorite,
 } from "@shared/schema";
 
 interface PromptTestWithResults extends PromptTest {
@@ -41,7 +39,6 @@ export default function PromptPlaygroundEnhanced() {
   const [prompt, setPrompt] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [selectedModels, setSelectedModels] = useState<string[]>(["claude-sonnet-4-5", "gpt-4o", "gemini-2.0-flash"]);
-  const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [currentTestId, setCurrentTestId] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<TestCaseTemplate | null>(null);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -64,15 +61,6 @@ export default function PromptPlaygroundEnhanced() {
     },
   });
 
-  // Fetch tool favorites
-  const { data: toolFavorites = [] } = useQuery<ToolFavorite[]>({
-    queryKey: ["/api/tool-favorites"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/tool-favorites");
-      return res.json();
-    },
-  });
-
   // Fetch model analytics
   const { data: analytics = [] } = useQuery<ModelAnalytics[]>({
     queryKey: ["/api/model-analytics"],
@@ -82,7 +70,8 @@ export default function PromptPlaygroundEnhanced() {
     },
   });
 
-  const { data: tests = [] } = useQuery<PromptTestWithResults[]>({
+  // Note: tests query is used to invalidate cache, not directly rendered
+  useQuery<PromptTestWithResults[]>({
     queryKey: ["/api/prompt-tests"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/prompt-tests");
@@ -181,7 +170,13 @@ export default function PromptPlaygroundEnhanced() {
           setSelectedModels(models);
         }
       } catch (e) {
-        // Ignore parsing errors
+        // Parsing errors are non-fatal; user can still pick models manually.
+        // Log for debugging so malformed template data can be detected and fixed.
+        // eslint-disable-next-line no-console
+        console.error("Failed to parse template.suggestedModels JSON:", e, {
+          templateId: template.id,
+          templateName: template.name,
+        });
       }
     }
     
@@ -198,14 +193,6 @@ export default function PromptPlaygroundEnhanced() {
       prev.includes(modelId) 
         ? prev.filter(id => id !== modelId)
         : [...prev, modelId]
-    );
-  };
-
-  const toggleToolSelection = (toolId: string) => {
-    setSelectedTools(prev => 
-      prev.includes(toolId) 
-        ? prev.filter(id => id !== toolId)
-        : [...prev, toolId]
     );
   };
 
@@ -332,6 +319,7 @@ export default function PromptPlaygroundEnhanced() {
                           <div className="flex items-start justify-between mb-2">
                             <Checkbox checked={isSelected} />
                             <button
+                              title="Toggle Favorite"
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -525,6 +513,8 @@ export default function PromptPlaygroundEnhanced() {
                             </Badge>
                           </div>
                           <button
+                            title="Unfavorite"
+                            type="button"
                             onClick={() => toggleModelFavoriteMutation.mutate({
                               modelName: favorite.modelName,
                               provider: favorite.provider,

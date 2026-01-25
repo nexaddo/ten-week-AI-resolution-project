@@ -83,6 +83,20 @@ npm run check    # TypeScript check without emit
 - **React components** → follow naming: `ComponentName.tsx`, use Shadcn UI primitives
 - **Client-side requests** → use `apiRequest()` + React Query hooks from `lib/queryClient.ts`
 
+## Completion Verification
+Before declaring any task complete, **always run the following checks**:
+
+```bash
+cd resolution-tracker
+npm run check    # TypeScript compilation check - must pass with no errors
+npm test         # Run all tests - must pass with no failures
+```
+
+Both commands must complete successfully before telling the user that work is complete. This ensures:
+- No TypeScript type errors or compilation issues
+- All existing tests continue to pass
+- No regressions introduced by changes
+
 ## Critical Details
 - **No authentication currently implemented** (passport imported but unused)
 - **In-memory storage**: data lost on server restart; migration to database pending

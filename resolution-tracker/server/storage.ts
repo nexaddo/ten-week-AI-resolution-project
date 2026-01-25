@@ -44,7 +44,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, gte, lte, inArray, or, isNull, desc, count, sql, avg } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, or, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Resolutions (user-scoped)
@@ -516,7 +516,8 @@ export class MemStorage implements IStorage {
   ): Promise<TestCaseTemplate | undefined> {
     const existing = this.testCaseTemplates.get(id);
     if (!existing) return undefined;
-    if (!existing.isBuiltIn && existing.userId !== userId) return undefined;
+    if (existing.isBuiltIn) return undefined; // Can't update built-in templates
+    if (existing.userId !== userId) return undefined;
 
     const updated: TestCaseTemplate = { ...existing, ...template };
     this.testCaseTemplates.set(id, updated);

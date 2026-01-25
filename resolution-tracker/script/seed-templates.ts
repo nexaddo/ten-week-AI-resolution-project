@@ -6,7 +6,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as dotenv from "dotenv";
-import { testCaseTemplates } from "../shared/schema.js";
+import { testCaseTemplates } from "../shared/schema";
 import { eq } from "drizzle-orm";
 
 dotenv.config();

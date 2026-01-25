@@ -3,7 +3,9 @@
 ## Security Analysis
 
 ### Changes Made
+
 This PR adds new features to the AI Prompt Playground including:
+
 - Test case template library
 - Model and tool favorites
 - Performance analytics
@@ -46,6 +48,7 @@ All new code follows secure coding practices:
 #### ⚠️ Pre-existing Issue (Not Introduced by This PR)
 
 **CSRF Protection Alert**:
+
 - Location: `server/auth_integrations/auth/oauthAuth.ts:303`
 - Issue: Cookie middleware without CSRF protection
 - Status: **Pre-existing** - Present before our changes
@@ -80,25 +83,34 @@ This is an existing security concern in the authentication layer that affects th
 
 ### API Endpoint Security
 
-All new endpoints follow secure patterns:
+All new endpoints follow secure patterns with user-scoped ownership checks:
 
 ```
-GET    /api/test-case-templates        [isAuthenticated] ✅
-GET    /api/test-case-templates/:id    [isAuthenticated] ✅
-POST   /api/test-case-templates        [isAuthenticated] ✅
-PATCH  /api/test-case-templates/:id    [isAuthenticated] ✅
-DELETE /api/test-case-templates/:id    [isAuthenticated] ✅
+GET    /api/test-case-templates        [isAuthenticated, user-scoped] ✅
+GET    /api/test-case-templates/:id    [isAuthenticated, ownership verified for non-built-in] ✅
+POST   /api/test-case-templates        [isAuthenticated, user-scoped] ✅
+PATCH  /api/test-case-templates/:id    [isAuthenticated, ownership verified] ✅
+DELETE /api/test-case-templates/:id    [isAuthenticated, ownership verified] ✅
 
-GET    /api/model-favorites             [isAuthenticated] ✅
-POST   /api/model-favorites             [isAuthenticated] ✅
-DELETE /api/model-favorites/:id         [isAuthenticated] ✅
+GET    /api/test-case-configurations/:promptTestId  [isAuthenticated, ownership verified] ✅
+POST   /api/test-case-configurations   [isAuthenticated, ownership verified] ✅
 
-GET    /api/tool-favorites              [isAuthenticated] ✅
-POST   /api/tool-favorites              [isAuthenticated] ✅
-DELETE /api/tool-favorites/:id          [isAuthenticated] ✅
+GET    /api/model-favorites             [isAuthenticated, user-scoped] ✅
+POST   /api/model-favorites             [isAuthenticated, user-scoped] ✅
+DELETE /api/model-favorites/:id         [isAuthenticated, ownership verified] ✅
 
-GET    /api/model-analytics             [isAuthenticated] ✅
+GET    /api/tool-favorites              [isAuthenticated, user-scoped] ✅
+POST   /api/tool-favorites              [isAuthenticated, user-scoped] ✅
+DELETE /api/tool-favorites/:id          [isAuthenticated, ownership verified] ✅
+
+GET    /api/model-analytics             [isAuthenticated, user-scoped] ✅
 ```
+
+**Ownership Verification Details:**
+
+- Non-built-in templates: Only accessible to their creator
+- Test case configurations: Verified via associated prompt test ownership
+- Favorites: User ID checked before deletion
 
 ### Data Privacy
 
@@ -117,7 +129,7 @@ GET    /api/model-analytics             [isAuthenticated] ✅
 
 ### Conclusion
 
-**✅ This PR introduces no new security vulnerabilities**
+#### ✅ This PR introduces no new security vulnerabilities**
 
 All new code follows secure coding practices and maintains the security posture of the application. The one security alert found by CodeQL is a pre-existing issue in the authentication layer that should be addressed separately.
 
