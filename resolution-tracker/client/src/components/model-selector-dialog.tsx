@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -53,13 +53,20 @@ const providerColors: Record<string, string> = {
   Google: "bg-blue-500",
 };
 
-export function ModelSelectorDialog({ 
-  open, 
-  onOpenChange, 
-  selectedModels, 
-  onConfirm 
+export function ModelSelectorDialog({
+  open,
+  onOpenChange,
+  selectedModels,
+  onConfirm
 }: ModelSelectorDialogProps) {
   const [tempSelected, setTempSelected] = useState<string[]>(selectedModels);
+
+  // Sync tempSelected with parent selectedModels when dialog opens or selectedModels changes
+  useEffect(() => {
+    if (open) {
+      setTempSelected(selectedModels);
+    }
+  }, [open, selectedModels]);
 
   const handleToggle = (modelId: string) => {
     setTempSelected(prev => 

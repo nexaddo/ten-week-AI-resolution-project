@@ -132,7 +132,6 @@ Stores custom test configurations
 
 ### Analytics
 - `GET /api/ai/model-map` - Get model performance analytics
-- `GET /api/ai/model-comparison` - Compare model metrics
 
 ## Usage
 

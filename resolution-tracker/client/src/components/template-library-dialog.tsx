@@ -10,10 +10,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
 import type { PromptTemplate, UseCaseCategory } from "@shared/schema";
-import { BookOpen, Code, Lightbulb, Search, FileText, GraduationCap, Briefcase, Sparkles } from "lucide-react";
+import { Code, Lightbulb, Search, FileText, GraduationCap, Briefcase, Sparkles } from "lucide-react";
 
 interface TemplateLibraryDialogProps {
   open: boolean;

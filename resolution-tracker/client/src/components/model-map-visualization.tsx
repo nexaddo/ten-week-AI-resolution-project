@@ -39,23 +39,25 @@ export function ModelMapVisualization() {
     },
   });
 
+  const computeModelScore = (model: ModelStats) => {
+    const successScore = model.successRate * 0.4;
+    const ratingScore =
+      (model.avgRating ? parseFloat(model.avgRating) * 20 : 0) * 0.4;
+    // Guard against avgLatency being 0 (no successful results) or negative
+    const latencyScore =
+      model.avgLatency > 0 ? (1000 / model.avgLatency) * 0.2 : 0;
+
+    return successScore + ratingScore + latencyScore;
+  };
+
   const getBestModelForCategory = (models: ModelStats[]) => {
     if (models.length === 0) return null;
-    
+
     // Score based on success rate, rating, and inverse of latency
     return models.reduce((best, model) => {
-      const score = (
-        model.successRate * 0.4 +
-        (model.avgRating ? parseFloat(model.avgRating) * 20 : 0) * 0.4 +
-        (1000 / model.avgLatency) * 0.2
-      );
-      
-      const bestScore = (
-        best.successRate * 0.4 +
-        (best.avgRating ? parseFloat(best.avgRating) * 20 : 0) * 0.4 +
-        (1000 / best.avgLatency) * 0.2
-      );
-      
+      const score = computeModelScore(model);
+      const bestScore = computeModelScore(best);
+
       return score > bestScore ? model : best;
     });
   };

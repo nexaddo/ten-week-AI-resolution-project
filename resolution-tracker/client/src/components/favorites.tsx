@@ -1,3 +1,4 @@
+import React from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Star } from "lucide-react";
@@ -94,7 +95,7 @@ export function FavoriteButton({
     },
   });
 
-  const handleToggle = (e: React.MouseEvent) => {
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     if (isFavorited) {
       removeFavoriteMutation.mutate();

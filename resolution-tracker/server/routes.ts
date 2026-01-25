@@ -730,18 +730,18 @@ export async function registerRoutes(
       const allResults = await Promise.all(
         tests.map(test => storage.getPromptTestResults(test.id))
       );
-      const flatResults = allResults.flat();
 
       // Group by category and model
       const categoryMap: Record<string, Record<string, any[]>> = {};
-      
-      for (const test of tests) {
+
+      for (let i = 0; i < tests.length; i++) {
+        const test = tests[i];
+        const results = allResults[i];
         const category = test.category || "general";
         if (!categoryMap[category]) {
           categoryMap[category] = {};
         }
 
-        const results = await storage.getPromptTestResults(test.id);
         for (const result of results) {
           if (!categoryMap[category][result.modelName]) {
             categoryMap[category][result.modelName] = [];
