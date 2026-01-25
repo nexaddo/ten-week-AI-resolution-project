@@ -19,6 +19,20 @@ import {
   type InsertTestCaseConfig,
   type UserFavorite,
   type InsertUserFavorite,
+  type TestCaseTemplate,
+  type InsertTestCaseTemplate,
+  type TestCaseConfiguration,
+  type InsertTestCaseConfiguration,
+  type ModelFavorite,
+  type InsertModelFavorite,
+  type ToolFavorite,
+  type InsertToolFavorite,
+  type UserActivityLog,
+  type InsertUserActivityLog,
+  type ApiMetrics,
+  type InsertApiMetrics,
+  type PageView,
+  type InsertPageView,
   resolutions,
   milestones,
   checkIns,
@@ -29,10 +43,17 @@ import {
   promptTemplates,
   testCaseConfigs,
   userFavorites,
+  testCaseTemplates,
+  testCaseConfigurations,
+  modelFavorites,
+  toolFavorites,
+  userActivityLog,
+  apiMetrics,
+  pageViews,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, or, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Resolutions (user-scoped)
@@ -102,6 +123,66 @@ export interface IStorage {
   getFavorite(userId: string, favoriteType: string, favoriteId: string): Promise<UserFavorite | undefined>;
   createFavorite(favorite: InsertUserFavorite & { userId: string }): Promise<UserFavorite>;
   deleteFavorite(id: string, userId: string): Promise<boolean>;
+
+  // Test Case Templates
+  getTestCaseTemplates(userId?: string): Promise<TestCaseTemplate[]>;
+  getTestCaseTemplate(id: string): Promise<TestCaseTemplate | undefined>;
+  createTestCaseTemplate(template: InsertTestCaseTemplate): Promise<TestCaseTemplate>;
+  updateTestCaseTemplate(id: string, template: Partial<InsertTestCaseTemplate>, userId?: string): Promise<TestCaseTemplate | undefined>;
+  deleteTestCaseTemplate(id: string, userId?: string): Promise<boolean>;
+
+  // Test Case Configurations
+  getTestCaseConfiguration(promptTestId: string): Promise<TestCaseConfiguration | undefined>;
+  createTestCaseConfiguration(config: InsertTestCaseConfiguration): Promise<TestCaseConfiguration>;
+
+  // Model Favorites
+  getModelFavorites(userId: string): Promise<ModelFavorite[]>;
+  createModelFavorite(favorite: InsertModelFavorite): Promise<ModelFavorite>;
+  deleteModelFavorite(id: string, userId: string): Promise<boolean>;
+
+  // Tool Favorites
+  getToolFavorites(userId: string): Promise<ToolFavorite[]>;
+  createToolFavorite(favorite: InsertToolFavorite): Promise<ToolFavorite>;
+  deleteToolFavorite(id: string, userId: string): Promise<boolean>;
+
+  // Analytics / Activity Tracking
+  logUserActivity(activity: InsertUserActivityLog): Promise<UserActivityLog>;
+  getUserActivityLog(userId: string, limit?: number): Promise<UserActivityLog[]>;
+  getAnalyticsStats(userId?: string): Promise<{
+    totalResolutions: number;
+    completedResolutions: number;
+    inProgressResolutions: number;
+    totalCheckIns: number;
+    totalMilestones: number;
+    completedMilestones: number;
+    recentActivities: UserActivityLog[];
+  }>;
+
+  // Performance Metrics
+  logApiMetric(metric: InsertApiMetrics): Promise<ApiMetrics>;
+  getApiMetrics(filters?: {
+    userId?: string;
+    endpoint?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    averageResponseTime: number;
+    totalRequests: number;
+    slowestEndpoints: Array<{ endpoint: string; avgResponseTime: number }>;
+    requestsByStatus: Array<{ statusCode: number; count: number }>;
+  }>;
+
+  // Page Views
+  logPageView(pageView: InsertPageView): Promise<PageView>;
+  getPageViewStats(filters?: {
+    userId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    totalViews: number;
+    uniqueUsers: number;
+    topPages: Array<{ path: string; views: number }>;
+  }>;
 }
 
 export class MemStorage implements IStorage {
@@ -115,6 +196,13 @@ export class MemStorage implements IStorage {
   private promptTemplates: Map<string, PromptTemplate>;
   private testCaseConfigs: Map<string, TestCaseConfig>;
   private userFavorites: Map<string, UserFavorite>;
+  private testCaseTemplates: Map<string, TestCaseTemplate>;
+  private testCaseConfigurations: Map<string, TestCaseConfiguration>;
+  private modelFavorites: Map<string, ModelFavorite>;
+  private toolFavorites: Map<string, ToolFavorite>;
+  private activityLog: Map<string, UserActivityLog>;
+  private apiMetricsLog: Map<string, ApiMetrics>;
+  private pageViewsLog: Map<string, PageView>;
 
   constructor() {
     this.resolutions = new Map();
@@ -127,6 +215,13 @@ export class MemStorage implements IStorage {
     this.promptTemplates = new Map();
     this.testCaseConfigs = new Map();
     this.userFavorites = new Map();
+    this.testCaseTemplates = new Map();
+    this.testCaseConfigurations = new Map();
+    this.modelFavorites = new Map();
+    this.toolFavorites = new Map();
+    this.activityLog = new Map();
+    this.apiMetricsLog = new Map();
+    this.pageViewsLog = new Map();
   }
 
   // Resolutions (user-scoped)
@@ -534,6 +629,325 @@ export class MemStorage implements IStorage {
     if (!favorite || favorite.userId !== userId) return false;
     return this.userFavorites.delete(id);
   }
+
+  // Test Case Templates
+  async getTestCaseTemplates(userId?: string): Promise<TestCaseTemplate[]> {
+    return Array.from(this.testCaseTemplates.values()).filter(
+      t => t.isBuiltIn || t.userId === userId
+    );
+  }
+
+  async getTestCaseTemplate(id: string): Promise<TestCaseTemplate | undefined> {
+    return this.testCaseTemplates.get(id);
+  }
+
+  async createTestCaseTemplate(template: InsertTestCaseTemplate): Promise<TestCaseTemplate> {
+    const id = randomUUID();
+    const newTemplate: TestCaseTemplate = {
+      ...template,
+      id,
+      userId: template.userId ?? null,
+      description: template.description ?? null,
+      systemPrompt: template.systemPrompt ?? null,
+      suggestedModels: template.suggestedModels ?? null,
+      suggestedTools: template.suggestedTools ?? null,
+      isBuiltIn: template.isBuiltIn ?? false,
+      createdAt: new Date(),
+    };
+    this.testCaseTemplates.set(id, newTemplate);
+    return newTemplate;
+  }
+
+  async updateTestCaseTemplate(
+    id: string,
+    template: Partial<InsertTestCaseTemplate>,
+    userId?: string
+  ): Promise<TestCaseTemplate | undefined> {
+    const existing = this.testCaseTemplates.get(id);
+    if (!existing) return undefined;
+    if (existing.isBuiltIn) return undefined; // Can't update built-in templates
+    if (existing.userId !== userId) return undefined;
+
+    const updated: TestCaseTemplate = { ...existing, ...template };
+    this.testCaseTemplates.set(id, updated);
+    return updated;
+  }
+
+  async deleteTestCaseTemplate(id: string, userId?: string): Promise<boolean> {
+    const existing = this.testCaseTemplates.get(id);
+    if (!existing) return false;
+    if (existing.isBuiltIn) return false; // Can't delete built-in templates
+    if (existing.userId !== userId) return false;
+
+    return this.testCaseTemplates.delete(id);
+  }
+
+  // Test Case Configurations
+  async getTestCaseConfiguration(promptTestId: string): Promise<TestCaseConfiguration | undefined> {
+    return Array.from(this.testCaseConfigurations.values()).find(
+      c => c.promptTestId === promptTestId
+    );
+  }
+
+  async createTestCaseConfiguration(config: InsertTestCaseConfiguration): Promise<TestCaseConfiguration> {
+    const id = randomUUID();
+    const newConfig: TestCaseConfiguration = {
+      ...config,
+      id,
+      selectedTools: config.selectedTools ?? null,
+      templateId: config.templateId ?? null,
+      createdAt: new Date(),
+    };
+    this.testCaseConfigurations.set(id, newConfig);
+    return newConfig;
+  }
+
+  // Model Favorites
+  async getModelFavorites(userId: string): Promise<ModelFavorite[]> {
+    return Array.from(this.modelFavorites.values()).filter(f => f.userId === userId);
+  }
+
+  async createModelFavorite(favorite: InsertModelFavorite): Promise<ModelFavorite> {
+    const id = randomUUID();
+    const newFavorite: ModelFavorite = {
+      ...favorite,
+      id,
+      notes: favorite.notes ?? null,
+      createdAt: new Date(),
+    };
+    this.modelFavorites.set(id, newFavorite);
+    return newFavorite;
+  }
+
+  async deleteModelFavorite(id: string, userId: string): Promise<boolean> {
+    const existing = this.modelFavorites.get(id);
+    if (!existing || existing.userId !== userId) return false;
+    return this.modelFavorites.delete(id);
+  }
+
+  // Tool Favorites
+  async getToolFavorites(userId: string): Promise<ToolFavorite[]> {
+    return Array.from(this.toolFavorites.values()).filter(f => f.userId === userId);
+  }
+
+  async createToolFavorite(favorite: InsertToolFavorite): Promise<ToolFavorite> {
+    const id = randomUUID();
+    const newFavorite: ToolFavorite = {
+      ...favorite,
+      id,
+      notes: favorite.notes ?? null,
+      createdAt: new Date(),
+    };
+    this.toolFavorites.set(id, newFavorite);
+    return newFavorite;
+  }
+
+  async deleteToolFavorite(id: string, userId: string): Promise<boolean> {
+    const existing = this.toolFavorites.get(id);
+    if (!existing || existing.userId !== userId) return false;
+    return this.toolFavorites.delete(id);
+  }
+
+  // Analytics / Activity Tracking
+  async logUserActivity(insertActivity: InsertUserActivityLog): Promise<UserActivityLog> {
+    const id = randomUUID();
+    const activity: UserActivityLog = {
+      ...insertActivity,
+      id,
+      entityType: insertActivity.entityType ?? null,
+      entityId: insertActivity.entityId ?? null,
+      metadata: insertActivity.metadata ?? null,
+      createdAt: new Date(),
+    };
+    this.activityLog.set(id, activity);
+    return activity;
+  }
+
+  async getUserActivityLog(userId: string, limit: number = 50): Promise<UserActivityLog[]> {
+    return Array.from(this.activityLog.values())
+      .filter((a) => a.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+
+  async getAnalyticsStats(userId?: string): Promise<{
+    totalResolutions: number;
+    completedResolutions: number;
+    inProgressResolutions: number;
+    totalCheckIns: number;
+    totalMilestones: number;
+    completedMilestones: number;
+    recentActivities: UserActivityLog[];
+  }> {
+    const userResolutions = userId
+      ? Array.from(this.resolutions.values()).filter((r) => r.userId === userId)
+      : Array.from(this.resolutions.values());
+
+    const resolutionIds = new Set(userResolutions.map((r) => r.id));
+    
+    const userCheckIns = Array.from(this.checkIns.values()).filter((c) =>
+      resolutionIds.has(c.resolutionId)
+    );
+    
+    const userMilestones = Array.from(this.milestones.values()).filter((m) =>
+      resolutionIds.has(m.resolutionId)
+    );
+
+    const recentActivities = userId
+      ? await this.getUserActivityLog(userId, 10)
+      : Array.from(this.activityLog.values())
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, 10);
+
+    return {
+      totalResolutions: userResolutions.length,
+      completedResolutions: userResolutions.filter((r) => r.status === "completed").length,
+      inProgressResolutions: userResolutions.filter((r) => r.status === "in_progress").length,
+      totalCheckIns: userCheckIns.length,
+      totalMilestones: userMilestones.length,
+      completedMilestones: userMilestones.filter((m) => m.completed).length,
+      recentActivities,
+    };
+  }
+
+  // Performance Metrics
+  async logApiMetric(insertMetric: InsertApiMetrics): Promise<ApiMetrics> {
+    const id = randomUUID();
+    const metric: ApiMetrics = {
+      ...insertMetric,
+      id,
+      userId: insertMetric.userId ?? null,
+      timestamp: new Date(),
+    };
+    this.apiMetricsLog.set(id, metric);
+    return metric;
+  }
+
+  async getApiMetrics(filters?: {
+    userId?: string;
+    endpoint?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    averageResponseTime: number;
+    totalRequests: number;
+    slowestEndpoints: Array<{ endpoint: string; avgResponseTime: number }>;
+    requestsByStatus: Array<{ statusCode: number; count: number }>;
+  }> {
+    let metrics = Array.from(this.apiMetricsLog.values());
+
+    // Apply filters
+    if (filters?.userId) {
+      metrics = metrics.filter((m) => m.userId === filters.userId);
+    }
+    if (filters?.endpoint) {
+      metrics = metrics.filter((m) => m.endpoint === filters.endpoint);
+    }
+    if (filters?.startDate) {
+      metrics = metrics.filter((m) => m.timestamp >= filters.startDate!);
+    }
+    if (filters?.endDate) {
+      metrics = metrics.filter((m) => m.timestamp <= filters.endDate!);
+    }
+
+    const totalRequests = metrics.length;
+    const averageResponseTime = totalRequests > 0
+      ? Math.round(metrics.reduce((sum, m) => sum + m.responseTimeMs, 0) / totalRequests)
+      : 0;
+
+    // Calculate slowest endpoints
+    const endpointStats = new Map<string, { total: number; count: number }>();
+    metrics.forEach((m) => {
+      const stats = endpointStats.get(m.endpoint) || { total: 0, count: 0 };
+      stats.total += m.responseTimeMs;
+      stats.count += 1;
+      endpointStats.set(m.endpoint, stats);
+    });
+
+    const slowestEndpoints = Array.from(endpointStats.entries())
+      .map(([endpoint, stats]) => ({
+        endpoint,
+        avgResponseTime: Math.round(stats.total / stats.count),
+      }))
+      .sort((a, b) => b.avgResponseTime - a.avgResponseTime)
+      .slice(0, 5);
+
+    // Calculate requests by status
+    const statusCounts = new Map<number, number>();
+    metrics.forEach((m) => {
+      statusCounts.set(m.statusCode, (statusCounts.get(m.statusCode) || 0) + 1);
+    });
+
+    const requestsByStatus = Array.from(statusCounts.entries())
+      .map(([statusCode, count]) => ({ statusCode, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      averageResponseTime,
+      totalRequests,
+      slowestEndpoints,
+      requestsByStatus,
+    };
+  }
+
+  // Page Views
+  async logPageView(insertPageView: InsertPageView): Promise<PageView> {
+    const id = randomUUID();
+    const pageView: PageView = {
+      ...insertPageView,
+      id,
+      userId: insertPageView.userId ?? null,
+      referrer: insertPageView.referrer ?? null,
+      userAgent: insertPageView.userAgent ?? null,
+      timestamp: new Date(),
+    };
+    this.pageViewsLog.set(id, pageView);
+    return pageView;
+  }
+
+  async getPageViewStats(filters?: {
+    userId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    totalViews: number;
+    uniqueUsers: number;
+    topPages: Array<{ path: string; views: number }>;
+  }> {
+    let views = Array.from(this.pageViewsLog.values());
+
+    // Apply filters
+    if (filters?.userId) {
+      views = views.filter((v) => v.userId === filters.userId);
+    }
+    if (filters?.startDate) {
+      views = views.filter((v) => v.timestamp >= filters.startDate!);
+    }
+    if (filters?.endDate) {
+      views = views.filter((v) => v.timestamp <= filters.endDate!);
+    }
+
+    const totalViews = views.length;
+    const uniqueUserIds = new Set(views.filter((v) => v.userId).map((v) => v.userId));
+    const uniqueUsers = uniqueUserIds.size;
+
+    // Calculate top pages
+    const pageCounts = new Map<string, number>();
+    views.forEach((v) => {
+      pageCounts.set(v.path, (pageCounts.get(v.path) || 0) + 1);
+    });
+
+    const topPages = Array.from(pageCounts.entries())
+      .map(([path, views]) => ({ path, views }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 10);
+
+    return {
+      totalViews,
+      uniqueUsers,
+      topPages,
+    };
+  }
 }
 
 // Database-backed storage implementation using Drizzle ORM
@@ -901,6 +1315,334 @@ export class DbStorage implements IStorage {
       .where(and(eq(userFavorites.id, id), eq(userFavorites.userId, userId)))
       .returning();
     return deleted !== undefined;
+  }
+
+  // Test Case Templates
+  async getTestCaseTemplates(userId?: string): Promise<TestCaseTemplate[]> {
+    if (userId) {
+      return await db
+        .select()
+        .from(testCaseTemplates)
+        .where(
+          // Get built-in templates or user's own templates
+          or(
+            eq(testCaseTemplates.isBuiltIn, true),
+            eq(testCaseTemplates.userId, userId)
+          )
+        );
+    }
+    // Return only built-in templates if no userId provided
+    return await db
+      .select()
+      .from(testCaseTemplates)
+      .where(eq(testCaseTemplates.isBuiltIn, true));
+  }
+
+  async getTestCaseTemplate(id: string): Promise<TestCaseTemplate | undefined> {
+    const [template] = await db
+      .select()
+      .from(testCaseTemplates)
+      .where(eq(testCaseTemplates.id, id));
+    return template;
+  }
+
+  async createTestCaseTemplate(insertTemplate: InsertTestCaseTemplate): Promise<TestCaseTemplate> {
+    const [template] = await db.insert(testCaseTemplates).values(insertTemplate).returning();
+    return template;
+  }
+
+  async updateTestCaseTemplate(
+    id: string,
+    template: Partial<InsertTestCaseTemplate>,
+    userId?: string
+  ): Promise<TestCaseTemplate | undefined> {
+    // Check ownership before updating
+    const existing = await this.getTestCaseTemplate(id);
+    if (!existing) return undefined;
+    if (existing.isBuiltIn) return undefined; // Can't update built-in templates
+    if (userId && existing.userId !== userId) return undefined;
+
+    const [updated] = await db
+      .update(testCaseTemplates)
+      .set(template)
+      .where(eq(testCaseTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTestCaseTemplate(id: string, userId?: string): Promise<boolean> {
+    // Check ownership before deleting
+    const existing = await this.getTestCaseTemplate(id);
+    if (!existing) return false;
+    if (existing.isBuiltIn) return false; // Can't delete built-in templates
+    if (userId && existing.userId !== userId) return false;
+
+    await db.delete(testCaseTemplates).where(eq(testCaseTemplates.id, id));
+    return true;
+  }
+
+  // Test Case Configurations
+  async getTestCaseConfiguration(promptTestId: string): Promise<TestCaseConfiguration | undefined> {
+    const [config] = await db
+      .select()
+      .from(testCaseConfigurations)
+      .where(eq(testCaseConfigurations.promptTestId, promptTestId));
+    return config;
+  }
+
+  async createTestCaseConfiguration(insertConfig: InsertTestCaseConfiguration): Promise<TestCaseConfiguration> {
+    const [config] = await db.insert(testCaseConfigurations).values(insertConfig).returning();
+    return config;
+  }
+
+  // Model Favorites
+  async getModelFavorites(userId: string): Promise<ModelFavorite[]> {
+    return await db
+      .select()
+      .from(modelFavorites)
+      .where(eq(modelFavorites.userId, userId));
+  }
+
+  async createModelFavorite(insertFavorite: InsertModelFavorite): Promise<ModelFavorite> {
+    const [favorite] = await db.insert(modelFavorites).values(insertFavorite).returning();
+    return favorite;
+  }
+
+  async deleteModelFavorite(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(modelFavorites)
+      .where(and(eq(modelFavorites.id, id), eq(modelFavorites.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Tool Favorites
+  async getToolFavorites(userId: string): Promise<ToolFavorite[]> {
+    return await db
+      .select()
+      .from(toolFavorites)
+      .where(eq(toolFavorites.userId, userId));
+  }
+
+  async createToolFavorite(insertFavorite: InsertToolFavorite): Promise<ToolFavorite> {
+    const [favorite] = await db.insert(toolFavorites).values(insertFavorite).returning();
+    return favorite;
+  }
+
+  async deleteToolFavorite(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(toolFavorites)
+      .where(and(eq(toolFavorites.id, id), eq(toolFavorites.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Analytics / Activity Tracking
+  async logUserActivity(insertActivity: InsertUserActivityLog): Promise<UserActivityLog> {
+    const [activity] = await db
+      .insert(userActivityLog)
+      .values(insertActivity)
+      .returning();
+    return activity;
+  }
+
+  async getUserActivityLog(userId: string, limit: number = 50): Promise<UserActivityLog[]> {
+    return await db
+      .select()
+      .from(userActivityLog)
+      .where(eq(userActivityLog.userId, userId))
+      .orderBy(desc(userActivityLog.createdAt))
+      .limit(limit);
+  }
+
+  async getAnalyticsStats(userId?: string): Promise<{
+    totalResolutions: number;
+    completedResolutions: number;
+    inProgressResolutions: number;
+    totalCheckIns: number;
+    totalMilestones: number;
+    completedMilestones: number;
+    recentActivities: UserActivityLog[];
+  }> {
+    // Get resolution stats
+    const resolutionQuery = userId
+      ? db.select().from(resolutions).where(eq(resolutions.userId, userId))
+      : db.select().from(resolutions);
+    
+    const userResolutions = await resolutionQuery;
+    const resolutionIds = userResolutions.map((r) => r.id);
+
+    // Get check-ins count
+    let userCheckIns: CheckIn[] = [];
+    if (resolutionIds.length > 0) {
+      userCheckIns = await db.select().from(checkIns).where(inArray(checkIns.resolutionId, resolutionIds));
+    }
+
+    // Get milestones
+    let userMilestones: Milestone[] = [];
+    if (resolutionIds.length > 0) {
+      userMilestones = await db.select().from(milestones).where(inArray(milestones.resolutionId, resolutionIds));
+    }
+
+    // Get recent activities
+    const recentActivities = userId
+      ? await this.getUserActivityLog(userId, 10)
+      : await db
+          .select()
+          .from(userActivityLog)
+          .orderBy(desc(userActivityLog.createdAt))
+          .limit(10);
+
+    return {
+      totalResolutions: userResolutions.length,
+      completedResolutions: userResolutions.filter((r) => r.status === "completed").length,
+      inProgressResolutions: userResolutions.filter((r) => r.status === "in_progress").length,
+      totalCheckIns: userCheckIns.length,
+      totalMilestones: userMilestones.length,
+      completedMilestones: userMilestones.filter((m) => m.completed).length,
+      recentActivities,
+    };
+  }
+
+  // Performance Metrics
+  async logApiMetric(insertMetric: InsertApiMetrics): Promise<ApiMetrics> {
+    const [metric] = await db
+      .insert(apiMetrics)
+      .values(insertMetric)
+      .returning();
+    return metric;
+  }
+
+  async getApiMetrics(filters?: {
+    userId?: string;
+    endpoint?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    averageResponseTime: number;
+    totalRequests: number;
+    slowestEndpoints: Array<{ endpoint: string; avgResponseTime: number }>;
+    requestsByStatus: Array<{ statusCode: number; count: number }>;
+  }> {
+    // Build query conditions
+    const conditions = [];
+    if (filters?.userId) {
+      conditions.push(eq(apiMetrics.userId, filters.userId));
+    }
+    if (filters?.endpoint) {
+      conditions.push(eq(apiMetrics.endpoint, filters.endpoint));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(apiMetrics.timestamp, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(apiMetrics.timestamp, filters.endDate));
+    }
+
+    // Get all matching metrics
+    const query = conditions.length > 0
+      ? db.select().from(apiMetrics).where(and(...conditions))
+      : db.select().from(apiMetrics);
+    
+    const metrics = await query;
+    
+    const totalRequests = metrics.length;
+    const averageResponseTime = totalRequests > 0
+      ? Math.round(metrics.reduce((sum, m) => sum + m.responseTimeMs, 0) / totalRequests)
+      : 0;
+
+    // Calculate slowest endpoints
+    const endpointStats = new Map<string, { total: number; count: number }>();
+    metrics.forEach((m) => {
+      const stats = endpointStats.get(m.endpoint) || { total: 0, count: 0 };
+      stats.total += m.responseTimeMs;
+      stats.count += 1;
+      endpointStats.set(m.endpoint, stats);
+    });
+
+    const slowestEndpoints = Array.from(endpointStats.entries())
+      .map(([endpoint, stats]) => ({
+        endpoint,
+        avgResponseTime: Math.round(stats.total / stats.count),
+      }))
+      .sort((a, b) => b.avgResponseTime - a.avgResponseTime)
+      .slice(0, 5);
+
+    // Calculate requests by status
+    const statusCounts = new Map<number, number>();
+    metrics.forEach((m) => {
+      statusCounts.set(m.statusCode, (statusCounts.get(m.statusCode) || 0) + 1);
+    });
+
+    const requestsByStatus = Array.from(statusCounts.entries())
+      .map(([statusCode, count]) => ({ statusCode, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      averageResponseTime,
+      totalRequests,
+      slowestEndpoints,
+      requestsByStatus,
+    };
+  }
+
+  // Page Views
+  async logPageView(insertPageView: InsertPageView): Promise<PageView> {
+    const [pageView] = await db
+      .insert(pageViews)
+      .values(insertPageView)
+      .returning();
+    return pageView;
+  }
+
+  async getPageViewStats(filters?: {
+    userId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    totalViews: number;
+    uniqueUsers: number;
+    topPages: Array<{ path: string; views: number }>;
+  }> {
+    // Build query conditions
+    const conditions = [];
+    if (filters?.userId) {
+      conditions.push(eq(pageViews.userId, filters.userId));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(pageViews.timestamp, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(pageViews.timestamp, filters.endDate));
+    }
+
+    // Get all matching page views
+    const query = conditions.length > 0
+      ? db.select().from(pageViews).where(and(...conditions))
+      : db.select().from(pageViews);
+    
+    const views = await query;
+    
+    const totalViews = views.length;
+    const uniqueUserIds = new Set(views.filter((v) => v.userId).map((v) => v.userId));
+    const uniqueUsers = uniqueUserIds.size;
+
+    // Calculate top pages
+    const pageCounts = new Map<string, number>();
+    views.forEach((v) => {
+      pageCounts.set(v.path, (pageCounts.get(v.path) || 0) + 1);
+    });
+
+    const topPages = Array.from(pageCounts.entries())
+      .map(([path, views]) => ({ path, views }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 10);
+
+    return {
+      totalViews,
+      uniqueUsers,
+      topPages,
+    };
   }
 }
 
