@@ -21,6 +21,12 @@ import {
   type InsertModelFavorite,
   type ToolFavorite,
   type InsertToolFavorite,
+  type UserActivityLog,
+  type InsertUserActivityLog,
+  type ApiMetrics,
+  type InsertApiMetrics,
+  type PageView,
+  type InsertPageView,
   resolutions,
   milestones,
   checkIns,
@@ -32,10 +38,13 @@ import {
   testCaseConfigurations,
   modelFavorites,
   toolFavorites,
+  userActivityLog,
+  apiMetrics,
+  pageViews,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, gte, lte, inArray, or, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, or, isNull, desc, count, sql, avg } from "drizzle-orm";
 
 export interface IStorage {
   // Resolutions (user-scoped)
@@ -107,6 +116,45 @@ export interface IStorage {
   getToolFavorites(userId: string): Promise<ToolFavorite[]>;
   createToolFavorite(favorite: InsertToolFavorite): Promise<ToolFavorite>;
   deleteToolFavorite(id: string, userId: string): Promise<boolean>;
+
+  // Analytics / Activity Tracking
+  logUserActivity(activity: InsertUserActivityLog): Promise<UserActivityLog>;
+  getUserActivityLog(userId: string, limit?: number): Promise<UserActivityLog[]>;
+  getAnalyticsStats(userId?: string): Promise<{
+    totalResolutions: number;
+    completedResolutions: number;
+    inProgressResolutions: number;
+    totalCheckIns: number;
+    totalMilestones: number;
+    completedMilestones: number;
+    recentActivities: UserActivityLog[];
+  }>;
+
+  // Performance Metrics
+  logApiMetric(metric: InsertApiMetrics): Promise<ApiMetrics>;
+  getApiMetrics(filters?: {
+    userId?: string;
+    endpoint?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    averageResponseTime: number;
+    totalRequests: number;
+    slowestEndpoints: Array<{ endpoint: string; avgResponseTime: number }>;
+    requestsByStatus: Array<{ statusCode: number; count: number }>;
+  }>;
+
+  // Page Views
+  logPageView(pageView: InsertPageView): Promise<PageView>;
+  getPageViewStats(filters?: {
+    userId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    totalViews: number;
+    uniqueUsers: number;
+    topPages: Array<{ path: string; views: number }>;
+  }>;
 }
 
 export class MemStorage implements IStorage {
@@ -121,6 +169,9 @@ export class MemStorage implements IStorage {
   private testCaseConfigurations: Map<string, TestCaseConfiguration>;
   private modelFavorites: Map<string, ModelFavorite>;
   private toolFavorites: Map<string, ToolFavorite>;
+  private activityLog: Map<string, UserActivityLog>;
+  private apiMetricsLog: Map<string, ApiMetrics>;
+  private pageViewsLog: Map<string, PageView>;
 
   constructor() {
     this.resolutions = new Map();
@@ -134,6 +185,9 @@ export class MemStorage implements IStorage {
     this.testCaseConfigurations = new Map();
     this.modelFavorites = new Map();
     this.toolFavorites = new Map();
+    this.activityLog = new Map();
+    this.apiMetricsLog = new Map();
+    this.pageViewsLog = new Map();
   }
 
   // Resolutions (user-scoped)
@@ -533,6 +587,207 @@ export class MemStorage implements IStorage {
     if (!existing || existing.userId !== userId) return false;
     return this.toolFavorites.delete(id);
   }
+
+  // Analytics / Activity Tracking
+  async logUserActivity(insertActivity: InsertUserActivityLog): Promise<UserActivityLog> {
+    const id = randomUUID();
+    const activity: UserActivityLog = {
+      ...insertActivity,
+      id,
+      entityType: insertActivity.entityType ?? null,
+      entityId: insertActivity.entityId ?? null,
+      metadata: insertActivity.metadata ?? null,
+      createdAt: new Date(),
+    };
+    this.activityLog.set(id, activity);
+    return activity;
+  }
+
+  async getUserActivityLog(userId: string, limit: number = 50): Promise<UserActivityLog[]> {
+    return Array.from(this.activityLog.values())
+      .filter((a) => a.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+
+  async getAnalyticsStats(userId?: string): Promise<{
+    totalResolutions: number;
+    completedResolutions: number;
+    inProgressResolutions: number;
+    totalCheckIns: number;
+    totalMilestones: number;
+    completedMilestones: number;
+    recentActivities: UserActivityLog[];
+  }> {
+    const userResolutions = userId
+      ? Array.from(this.resolutions.values()).filter((r) => r.userId === userId)
+      : Array.from(this.resolutions.values());
+
+    const resolutionIds = new Set(userResolutions.map((r) => r.id));
+    
+    const userCheckIns = Array.from(this.checkIns.values()).filter((c) =>
+      resolutionIds.has(c.resolutionId)
+    );
+    
+    const userMilestones = Array.from(this.milestones.values()).filter((m) =>
+      resolutionIds.has(m.resolutionId)
+    );
+
+    const recentActivities = userId
+      ? await this.getUserActivityLog(userId, 10)
+      : Array.from(this.activityLog.values())
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, 10);
+
+    return {
+      totalResolutions: userResolutions.length,
+      completedResolutions: userResolutions.filter((r) => r.status === "completed").length,
+      inProgressResolutions: userResolutions.filter((r) => r.status === "in_progress").length,
+      totalCheckIns: userCheckIns.length,
+      totalMilestones: userMilestones.length,
+      completedMilestones: userMilestones.filter((m) => m.completed).length,
+      recentActivities,
+    };
+  }
+
+  // Performance Metrics
+  async logApiMetric(insertMetric: InsertApiMetrics): Promise<ApiMetrics> {
+    const id = randomUUID();
+    const metric: ApiMetrics = {
+      ...insertMetric,
+      id,
+      userId: insertMetric.userId ?? null,
+      timestamp: new Date(),
+    };
+    this.apiMetricsLog.set(id, metric);
+    return metric;
+  }
+
+  async getApiMetrics(filters?: {
+    userId?: string;
+    endpoint?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    averageResponseTime: number;
+    totalRequests: number;
+    slowestEndpoints: Array<{ endpoint: string; avgResponseTime: number }>;
+    requestsByStatus: Array<{ statusCode: number; count: number }>;
+  }> {
+    let metrics = Array.from(this.apiMetricsLog.values());
+
+    // Apply filters
+    if (filters?.userId) {
+      metrics = metrics.filter((m) => m.userId === filters.userId);
+    }
+    if (filters?.endpoint) {
+      metrics = metrics.filter((m) => m.endpoint === filters.endpoint);
+    }
+    if (filters?.startDate) {
+      metrics = metrics.filter((m) => m.timestamp >= filters.startDate!);
+    }
+    if (filters?.endDate) {
+      metrics = metrics.filter((m) => m.timestamp <= filters.endDate!);
+    }
+
+    const totalRequests = metrics.length;
+    const averageResponseTime = totalRequests > 0
+      ? Math.round(metrics.reduce((sum, m) => sum + m.responseTimeMs, 0) / totalRequests)
+      : 0;
+
+    // Calculate slowest endpoints
+    const endpointStats = new Map<string, { total: number; count: number }>();
+    metrics.forEach((m) => {
+      const stats = endpointStats.get(m.endpoint) || { total: 0, count: 0 };
+      stats.total += m.responseTimeMs;
+      stats.count += 1;
+      endpointStats.set(m.endpoint, stats);
+    });
+
+    const slowestEndpoints = Array.from(endpointStats.entries())
+      .map(([endpoint, stats]) => ({
+        endpoint,
+        avgResponseTime: Math.round(stats.total / stats.count),
+      }))
+      .sort((a, b) => b.avgResponseTime - a.avgResponseTime)
+      .slice(0, 5);
+
+    // Calculate requests by status
+    const statusCounts = new Map<number, number>();
+    metrics.forEach((m) => {
+      statusCounts.set(m.statusCode, (statusCounts.get(m.statusCode) || 0) + 1);
+    });
+
+    const requestsByStatus = Array.from(statusCounts.entries())
+      .map(([statusCode, count]) => ({ statusCode, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      averageResponseTime,
+      totalRequests,
+      slowestEndpoints,
+      requestsByStatus,
+    };
+  }
+
+  // Page Views
+  async logPageView(insertPageView: InsertPageView): Promise<PageView> {
+    const id = randomUUID();
+    const pageView: PageView = {
+      ...insertPageView,
+      id,
+      userId: insertPageView.userId ?? null,
+      referrer: insertPageView.referrer ?? null,
+      userAgent: insertPageView.userAgent ?? null,
+      timestamp: new Date(),
+    };
+    this.pageViewsLog.set(id, pageView);
+    return pageView;
+  }
+
+  async getPageViewStats(filters?: {
+    userId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    totalViews: number;
+    uniqueUsers: number;
+    topPages: Array<{ path: string; views: number }>;
+  }> {
+    let views = Array.from(this.pageViewsLog.values());
+
+    // Apply filters
+    if (filters?.userId) {
+      views = views.filter((v) => v.userId === filters.userId);
+    }
+    if (filters?.startDate) {
+      views = views.filter((v) => v.timestamp >= filters.startDate!);
+    }
+    if (filters?.endDate) {
+      views = views.filter((v) => v.timestamp <= filters.endDate!);
+    }
+
+    const totalViews = views.length;
+    const uniqueUserIds = new Set(views.filter((v) => v.userId).map((v) => v.userId));
+    const uniqueUsers = uniqueUserIds.size;
+
+    // Calculate top pages
+    const pageCounts = new Map<string, number>();
+    views.forEach((v) => {
+      pageCounts.set(v.path, (pageCounts.get(v.path) || 0) + 1);
+    });
+
+    const topPages = Array.from(pageCounts.entries())
+      .map(([path, views]) => ({ path, views }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 10);
+
+    return {
+      totalViews,
+      uniqueUsers,
+      topPages,
+    };
+  }
 }
 
 // Database-backed storage implementation using Drizzle ORM
@@ -914,6 +1169,214 @@ export class DbStorage implements IStorage {
       .where(and(eq(toolFavorites.id, id), eq(toolFavorites.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  // Analytics / Activity Tracking
+  async logUserActivity(insertActivity: InsertUserActivityLog): Promise<UserActivityLog> {
+    const [activity] = await db
+      .insert(userActivityLog)
+      .values(insertActivity)
+      .returning();
+    return activity;
+  }
+
+  async getUserActivityLog(userId: string, limit: number = 50): Promise<UserActivityLog[]> {
+    return await db
+      .select()
+      .from(userActivityLog)
+      .where(eq(userActivityLog.userId, userId))
+      .orderBy(desc(userActivityLog.createdAt))
+      .limit(limit);
+  }
+
+  async getAnalyticsStats(userId?: string): Promise<{
+    totalResolutions: number;
+    completedResolutions: number;
+    inProgressResolutions: number;
+    totalCheckIns: number;
+    totalMilestones: number;
+    completedMilestones: number;
+    recentActivities: UserActivityLog[];
+  }> {
+    // Get resolution stats
+    const resolutionQuery = userId
+      ? db.select().from(resolutions).where(eq(resolutions.userId, userId))
+      : db.select().from(resolutions);
+    
+    const userResolutions = await resolutionQuery;
+    const resolutionIds = userResolutions.map((r) => r.id);
+
+    // Get check-ins count
+    let userCheckIns: CheckIn[] = [];
+    if (resolutionIds.length > 0) {
+      userCheckIns = await db.select().from(checkIns).where(inArray(checkIns.resolutionId, resolutionIds));
+    }
+
+    // Get milestones
+    let userMilestones: Milestone[] = [];
+    if (resolutionIds.length > 0) {
+      userMilestones = await db.select().from(milestones).where(inArray(milestones.resolutionId, resolutionIds));
+    }
+
+    // Get recent activities
+    const recentActivities = userId
+      ? await this.getUserActivityLog(userId, 10)
+      : await db
+          .select()
+          .from(userActivityLog)
+          .orderBy(desc(userActivityLog.createdAt))
+          .limit(10);
+
+    return {
+      totalResolutions: userResolutions.length,
+      completedResolutions: userResolutions.filter((r) => r.status === "completed").length,
+      inProgressResolutions: userResolutions.filter((r) => r.status === "in_progress").length,
+      totalCheckIns: userCheckIns.length,
+      totalMilestones: userMilestones.length,
+      completedMilestones: userMilestones.filter((m) => m.completed).length,
+      recentActivities,
+    };
+  }
+
+  // Performance Metrics
+  async logApiMetric(insertMetric: InsertApiMetrics): Promise<ApiMetrics> {
+    const [metric] = await db
+      .insert(apiMetrics)
+      .values(insertMetric)
+      .returning();
+    return metric;
+  }
+
+  async getApiMetrics(filters?: {
+    userId?: string;
+    endpoint?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    averageResponseTime: number;
+    totalRequests: number;
+    slowestEndpoints: Array<{ endpoint: string; avgResponseTime: number }>;
+    requestsByStatus: Array<{ statusCode: number; count: number }>;
+  }> {
+    // Build query conditions
+    const conditions = [];
+    if (filters?.userId) {
+      conditions.push(eq(apiMetrics.userId, filters.userId));
+    }
+    if (filters?.endpoint) {
+      conditions.push(eq(apiMetrics.endpoint, filters.endpoint));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(apiMetrics.timestamp, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(apiMetrics.timestamp, filters.endDate));
+    }
+
+    // Get all matching metrics
+    const query = conditions.length > 0
+      ? db.select().from(apiMetrics).where(and(...conditions))
+      : db.select().from(apiMetrics);
+    
+    const metrics = await query;
+    
+    const totalRequests = metrics.length;
+    const averageResponseTime = totalRequests > 0
+      ? Math.round(metrics.reduce((sum, m) => sum + m.responseTimeMs, 0) / totalRequests)
+      : 0;
+
+    // Calculate slowest endpoints
+    const endpointStats = new Map<string, { total: number; count: number }>();
+    metrics.forEach((m) => {
+      const stats = endpointStats.get(m.endpoint) || { total: 0, count: 0 };
+      stats.total += m.responseTimeMs;
+      stats.count += 1;
+      endpointStats.set(m.endpoint, stats);
+    });
+
+    const slowestEndpoints = Array.from(endpointStats.entries())
+      .map(([endpoint, stats]) => ({
+        endpoint,
+        avgResponseTime: Math.round(stats.total / stats.count),
+      }))
+      .sort((a, b) => b.avgResponseTime - a.avgResponseTime)
+      .slice(0, 5);
+
+    // Calculate requests by status
+    const statusCounts = new Map<number, number>();
+    metrics.forEach((m) => {
+      statusCounts.set(m.statusCode, (statusCounts.get(m.statusCode) || 0) + 1);
+    });
+
+    const requestsByStatus = Array.from(statusCounts.entries())
+      .map(([statusCode, count]) => ({ statusCode, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      averageResponseTime,
+      totalRequests,
+      slowestEndpoints,
+      requestsByStatus,
+    };
+  }
+
+  // Page Views
+  async logPageView(insertPageView: InsertPageView): Promise<PageView> {
+    const [pageView] = await db
+      .insert(pageViews)
+      .values(insertPageView)
+      .returning();
+    return pageView;
+  }
+
+  async getPageViewStats(filters?: {
+    userId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    totalViews: number;
+    uniqueUsers: number;
+    topPages: Array<{ path: string; views: number }>;
+  }> {
+    // Build query conditions
+    const conditions = [];
+    if (filters?.userId) {
+      conditions.push(eq(pageViews.userId, filters.userId));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(pageViews.timestamp, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(pageViews.timestamp, filters.endDate));
+    }
+
+    // Get all matching page views
+    const query = conditions.length > 0
+      ? db.select().from(pageViews).where(and(...conditions))
+      : db.select().from(pageViews);
+    
+    const views = await query;
+    
+    const totalViews = views.length;
+    const uniqueUserIds = new Set(views.filter((v) => v.userId).map((v) => v.userId));
+    const uniqueUsers = uniqueUserIds.size;
+
+    // Calculate top pages
+    const pageCounts = new Map<string, number>();
+    views.forEach((v) => {
+      pageCounts.set(v.path, (pageCounts.get(v.path) || 0) + 1);
+    });
+
+    const topPages = Array.from(pageCounts.entries())
+      .map(([path, views]) => ({ path, views }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 10);
+
+    return {
+      totalViews,
+      uniqueUsers,
+      topPages,
+    };
   }
 }
 

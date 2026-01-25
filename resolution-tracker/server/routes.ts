@@ -19,6 +19,58 @@ import { PromptTester } from "./ai/promptTester";
 import type { ModelSelectionStrategy } from "./ai/types";
 import { log } from "./index";
 import { pool } from "./db";
+import { db } from "./db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+// Middleware to check if user is admin
+async function isAdmin(req: any, res: any, next: any) {
+  try {
+    const userId = req.user?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden: Admin access required" });
+    }
+
+    next();
+  } catch (error) {
+    log(`Admin check failed: ${error}`);
+    res.status(500).json({ error: "Failed to verify admin status" });
+  }
+}
+
+// Middleware to track API performance metrics
+function apiMetricsMiddleware(req: any, res: any, next: any) {
+  const startTime = Date.now();
+  
+  // Store original end function
+  const originalEnd = res.end;
+  
+  // Override end function to log metrics
+  res.end = function(...args: any[]) {
+    const responseTime = Date.now() - startTime;
+    const userId = req.user?.claims?.sub || null;
+    
+    // Log the metric asynchronously (don't block response)
+    storage.logApiMetric({
+      userId,
+      endpoint: req.path,
+      method: req.method,
+      statusCode: res.statusCode,
+      responseTimeMs: responseTime,
+    }).catch((err) => log(`Failed to log API metric: ${err}`));
+    
+    // Call original end function
+    return originalEnd.apply(res, args);
+  };
+  
+  next();
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -38,6 +90,9 @@ export async function registerRoutes(
 
   // Apply global rate limiting to all API routes
   app.use("/api", apiLimiter);
+  
+  // Apply performance tracking to all API routes
+  app.use("/api", apiMetricsMiddleware);
 
   // Rate limiter for milestone-related routes to mitigate abuse
   const milestoneLimiter = rateLimit({
@@ -104,6 +159,16 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const parsed = insertResolutionSchema.parse(req.body);
       const resolution = await storage.createResolution({ ...parsed, userId });
+      
+      // Log activity
+      await storage.logUserActivity({
+        userId,
+        action: "resolution_created",
+        entityType: "resolution",
+        entityId: resolution.id,
+        metadata: JSON.stringify({ title: resolution.title, category: resolution.category }),
+      });
+      
       res.status(201).json(resolution);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -289,6 +354,15 @@ export async function registerRoutes(
           (process.env.AI_STRATEGY as ModelSelectionStrategy) || "all"
         );
       }
+
+      // Log activity
+      await storage.logUserActivity({
+        userId,
+        action: "check_in_added",
+        entityType: "check_in",
+        entityId: checkIn.id,
+        metadata: JSON.stringify({ resolutionId: parsed.resolutionId }),
+      });
 
       res.status(201).json(checkIn);
     } catch (error) {
@@ -744,6 +818,110 @@ export async function registerRoutes(
     } catch (error) {
       log(`Failed to get model analytics: ${error}`);
       res.status(500).json({ error: "Failed to get model analytics" });
+    }
+  });
+
+  // Analytics routes (protected)
+  
+  // Get analytics stats - user can see their own, admins can see all
+  app.get("/api/analytics/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // If user is admin and no specific user requested, show global stats
+      const targetUserId = user?.role === "admin" && !req.query.userId ? undefined : userId;
+      
+      const stats = await storage.getAnalyticsStats(targetUserId);
+      res.json(stats);
+    } catch (error) {
+      log(`Failed to fetch analytics stats: ${error}`);
+      res.status(500).json({ error: "Failed to fetch analytics stats" });
+    }
+  });
+
+  // Get user activity log
+  app.get("/api/analytics/activity", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      
+      const activities = await storage.getUserActivityLog(userId, limit);
+      res.json(activities);
+    } catch (error) {
+      log(`Failed to fetch activity log: ${error}`);
+      res.status(500).json({ error: "Failed to fetch activity log" });
+    }
+  });
+
+  // Get API performance metrics
+  app.get("/api/analytics/performance", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // Only admins can see all performance metrics, regular users see their own
+      const targetUserId = user?.role === "admin" && !req.query.userId ? undefined : userId;
+      
+      const metrics = await storage.getApiMetrics({ userId: targetUserId });
+      res.json(metrics);
+    } catch (error) {
+      log(`Failed to fetch performance metrics: ${error}`);
+      res.status(500).json({ error: "Failed to fetch performance metrics" });
+    }
+  });
+
+  // Get page view statistics
+  app.get("/api/analytics/pageviews", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // Only admins can see all page views, regular users see their own
+      const targetUserId = user?.role === "admin" && !req.query.userId ? undefined : userId;
+      
+      const stats = await storage.getPageViewStats({ userId: targetUserId });
+      res.json(stats);
+    } catch (error) {
+      log(`Failed to fetch page view stats: ${error}`);
+      res.status(500).json({ error: "Failed to fetch page view stats" });
+    }
+  });
+
+  // Log page view (called from frontend)
+  app.post("/api/analytics/pageview", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { path, referrer } = req.body;
+      
+      await storage.logPageView({
+        userId,
+        path,
+        referrer: referrer || null,
+        userAgent: req.get('user-agent') || null,
+      });
+      
+      res.status(201).json({ success: true });
+    } catch (error) {
+      log(`Failed to log page view: ${error}`);
+      res.status(500).json({ error: "Failed to log page view" });
+    }
+  });
+
+  // Get current user info including role
+  app.get("/api/user/me", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      log(`Failed to fetch user info: ${error}`);
+      res.status(500).json({ error: "Failed to fetch user info" });
     }
   });
 
