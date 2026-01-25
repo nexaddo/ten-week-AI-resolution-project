@@ -497,6 +497,12 @@ export class MemStorage implements IStorage {
     const newTemplate: TestCaseTemplate = {
       ...template,
       id,
+      userId: template.userId ?? null,
+      description: template.description ?? null,
+      systemPrompt: template.systemPrompt ?? null,
+      suggestedModels: template.suggestedModels ?? null,
+      suggestedTools: template.suggestedTools ?? null,
+      isBuiltIn: template.isBuiltIn ?? false,
       createdAt: new Date(),
     };
     this.testCaseTemplates.set(id, newTemplate);
@@ -538,6 +544,8 @@ export class MemStorage implements IStorage {
     const newConfig: TestCaseConfiguration = {
       ...config,
       id,
+      selectedTools: config.selectedTools ?? null,
+      templateId: config.templateId ?? null,
       createdAt: new Date(),
     };
     this.testCaseConfigurations.set(id, newConfig);
@@ -554,6 +562,7 @@ export class MemStorage implements IStorage {
     const newFavorite: ModelFavorite = {
       ...favorite,
       id,
+      notes: favorite.notes ?? null,
       createdAt: new Date(),
     };
     this.modelFavorites.set(id, newFavorite);
@@ -576,6 +585,7 @@ export class MemStorage implements IStorage {
     const newFavorite: ToolFavorite = {
       ...favorite,
       id,
+      notes: favorite.notes ?? null,
       createdAt: new Date(),
     };
     this.toolFavorites.set(id, newFavorite);
