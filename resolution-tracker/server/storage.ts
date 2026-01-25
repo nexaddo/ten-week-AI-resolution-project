@@ -13,6 +13,14 @@ import {
   type InsertPromptTest,
   type PromptTestResult,
   type InsertPromptTestResult,
+  type TestCaseTemplate,
+  type InsertTestCaseTemplate,
+  type TestCaseConfiguration,
+  type InsertTestCaseConfiguration,
+  type ModelFavorite,
+  type InsertModelFavorite,
+  type ToolFavorite,
+  type InsertToolFavorite,
   type UserActivityLog,
   type InsertUserActivityLog,
   type ApiMetrics,
@@ -26,13 +34,17 @@ import {
   aiModelUsage,
   promptTests,
   promptTestResults,
+  testCaseTemplates,
+  testCaseConfigurations,
+  modelFavorites,
+  toolFavorites,
   userActivityLog,
   apiMetrics,
   pageViews,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, gte, lte, inArray, desc, count, sql, avg } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, or, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Resolutions (user-scoped)
@@ -84,6 +96,27 @@ export interface IStorage {
     updates: { userRating?: number; userComment?: string }
   ): Promise<PromptTestResult | undefined>;
 
+  // Test Case Templates
+  getTestCaseTemplates(userId?: string): Promise<TestCaseTemplate[]>;
+  getTestCaseTemplate(id: string): Promise<TestCaseTemplate | undefined>;
+  createTestCaseTemplate(template: InsertTestCaseTemplate): Promise<TestCaseTemplate>;
+  updateTestCaseTemplate(id: string, template: Partial<InsertTestCaseTemplate>, userId?: string): Promise<TestCaseTemplate | undefined>;
+  deleteTestCaseTemplate(id: string, userId?: string): Promise<boolean>;
+
+  // Test Case Configurations
+  getTestCaseConfiguration(promptTestId: string): Promise<TestCaseConfiguration | undefined>;
+  createTestCaseConfiguration(config: InsertTestCaseConfiguration): Promise<TestCaseConfiguration>;
+
+  // Model Favorites
+  getModelFavorites(userId: string): Promise<ModelFavorite[]>;
+  createModelFavorite(favorite: InsertModelFavorite): Promise<ModelFavorite>;
+  deleteModelFavorite(id: string, userId: string): Promise<boolean>;
+
+  // Tool Favorites
+  getToolFavorites(userId: string): Promise<ToolFavorite[]>;
+  createToolFavorite(favorite: InsertToolFavorite): Promise<ToolFavorite>;
+  deleteToolFavorite(id: string, userId: string): Promise<boolean>;
+
   // Analytics / Activity Tracking
   logUserActivity(activity: InsertUserActivityLog): Promise<UserActivityLog>;
   getUserActivityLog(userId: string, limit?: number): Promise<UserActivityLog[]>;
@@ -132,6 +165,10 @@ export class MemStorage implements IStorage {
   private aiModelUsage: Map<string, AiModelUsage>;
   private promptTests: Map<string, PromptTest>;
   private promptTestResults: Map<string, PromptTestResult>;
+  private testCaseTemplates: Map<string, TestCaseTemplate>;
+  private testCaseConfigurations: Map<string, TestCaseConfiguration>;
+  private modelFavorites: Map<string, ModelFavorite>;
+  private toolFavorites: Map<string, ToolFavorite>;
   private activityLog: Map<string, UserActivityLog>;
   private apiMetricsLog: Map<string, ApiMetrics>;
   private pageViewsLog: Map<string, PageView>;
@@ -144,6 +181,10 @@ export class MemStorage implements IStorage {
     this.aiModelUsage = new Map();
     this.promptTests = new Map();
     this.promptTestResults = new Map();
+    this.testCaseTemplates = new Map();
+    this.testCaseConfigurations = new Map();
+    this.modelFavorites = new Map();
+    this.toolFavorites = new Map();
     this.activityLog = new Map();
     this.apiMetricsLog = new Map();
     this.pageViewsLog = new Map();
@@ -438,6 +479,124 @@ export class MemStorage implements IStorage {
     };
     this.promptTestResults.set(id, updated);
     return updated;
+  }
+
+  // Test Case Templates
+  async getTestCaseTemplates(userId?: string): Promise<TestCaseTemplate[]> {
+    return Array.from(this.testCaseTemplates.values()).filter(
+      t => t.isBuiltIn || t.userId === userId
+    );
+  }
+
+  async getTestCaseTemplate(id: string): Promise<TestCaseTemplate | undefined> {
+    return this.testCaseTemplates.get(id);
+  }
+
+  async createTestCaseTemplate(template: InsertTestCaseTemplate): Promise<TestCaseTemplate> {
+    const id = randomUUID();
+    const newTemplate: TestCaseTemplate = {
+      ...template,
+      id,
+      userId: template.userId ?? null,
+      description: template.description ?? null,
+      systemPrompt: template.systemPrompt ?? null,
+      suggestedModels: template.suggestedModels ?? null,
+      suggestedTools: template.suggestedTools ?? null,
+      isBuiltIn: template.isBuiltIn ?? false,
+      createdAt: new Date(),
+    };
+    this.testCaseTemplates.set(id, newTemplate);
+    return newTemplate;
+  }
+
+  async updateTestCaseTemplate(
+    id: string,
+    template: Partial<InsertTestCaseTemplate>,
+    userId?: string
+  ): Promise<TestCaseTemplate | undefined> {
+    const existing = this.testCaseTemplates.get(id);
+    if (!existing) return undefined;
+    if (existing.isBuiltIn) return undefined; // Can't update built-in templates
+    if (existing.userId !== userId) return undefined;
+
+    const updated: TestCaseTemplate = { ...existing, ...template };
+    this.testCaseTemplates.set(id, updated);
+    return updated;
+  }
+
+  async deleteTestCaseTemplate(id: string, userId?: string): Promise<boolean> {
+    const existing = this.testCaseTemplates.get(id);
+    if (!existing) return false;
+    if (existing.isBuiltIn) return false; // Can't delete built-in templates
+    if (existing.userId !== userId) return false;
+
+    return this.testCaseTemplates.delete(id);
+  }
+
+  // Test Case Configurations
+  async getTestCaseConfiguration(promptTestId: string): Promise<TestCaseConfiguration | undefined> {
+    return Array.from(this.testCaseConfigurations.values()).find(
+      c => c.promptTestId === promptTestId
+    );
+  }
+
+  async createTestCaseConfiguration(config: InsertTestCaseConfiguration): Promise<TestCaseConfiguration> {
+    const id = randomUUID();
+    const newConfig: TestCaseConfiguration = {
+      ...config,
+      id,
+      selectedTools: config.selectedTools ?? null,
+      templateId: config.templateId ?? null,
+      createdAt: new Date(),
+    };
+    this.testCaseConfigurations.set(id, newConfig);
+    return newConfig;
+  }
+
+  // Model Favorites
+  async getModelFavorites(userId: string): Promise<ModelFavorite[]> {
+    return Array.from(this.modelFavorites.values()).filter(f => f.userId === userId);
+  }
+
+  async createModelFavorite(favorite: InsertModelFavorite): Promise<ModelFavorite> {
+    const id = randomUUID();
+    const newFavorite: ModelFavorite = {
+      ...favorite,
+      id,
+      notes: favorite.notes ?? null,
+      createdAt: new Date(),
+    };
+    this.modelFavorites.set(id, newFavorite);
+    return newFavorite;
+  }
+
+  async deleteModelFavorite(id: string, userId: string): Promise<boolean> {
+    const existing = this.modelFavorites.get(id);
+    if (!existing || existing.userId !== userId) return false;
+    return this.modelFavorites.delete(id);
+  }
+
+  // Tool Favorites
+  async getToolFavorites(userId: string): Promise<ToolFavorite[]> {
+    return Array.from(this.toolFavorites.values()).filter(f => f.userId === userId);
+  }
+
+  async createToolFavorite(favorite: InsertToolFavorite): Promise<ToolFavorite> {
+    const id = randomUUID();
+    const newFavorite: ToolFavorite = {
+      ...favorite,
+      id,
+      notes: favorite.notes ?? null,
+      createdAt: new Date(),
+    };
+    this.toolFavorites.set(id, newFavorite);
+    return newFavorite;
+  }
+
+  async deleteToolFavorite(id: string, userId: string): Promise<boolean> {
+    const existing = this.toolFavorites.get(id);
+    if (!existing || existing.userId !== userId) return false;
+    return this.toolFavorites.delete(id);
   }
 
   // Analytics / Activity Tracking
@@ -901,6 +1060,126 @@ export class DbStorage implements IStorage {
       .where(eq(promptTestResults.id, id))
       .returning();
     return updated;
+  }
+
+  // Test Case Templates
+  async getTestCaseTemplates(userId?: string): Promise<TestCaseTemplate[]> {
+    if (userId) {
+      return await db
+        .select()
+        .from(testCaseTemplates)
+        .where(
+          // Get built-in templates or user's own templates
+          or(
+            eq(testCaseTemplates.isBuiltIn, true),
+            eq(testCaseTemplates.userId, userId)
+          )
+        );
+    }
+    // Return only built-in templates if no userId provided
+    return await db
+      .select()
+      .from(testCaseTemplates)
+      .where(eq(testCaseTemplates.isBuiltIn, true));
+  }
+
+  async getTestCaseTemplate(id: string): Promise<TestCaseTemplate | undefined> {
+    const [template] = await db
+      .select()
+      .from(testCaseTemplates)
+      .where(eq(testCaseTemplates.id, id));
+    return template;
+  }
+
+  async createTestCaseTemplate(insertTemplate: InsertTestCaseTemplate): Promise<TestCaseTemplate> {
+    const [template] = await db.insert(testCaseTemplates).values(insertTemplate).returning();
+    return template;
+  }
+
+  async updateTestCaseTemplate(
+    id: string,
+    template: Partial<InsertTestCaseTemplate>,
+    userId?: string
+  ): Promise<TestCaseTemplate | undefined> {
+    // Check ownership before updating
+    const existing = await this.getTestCaseTemplate(id);
+    if (!existing) return undefined;
+    if (existing.isBuiltIn) return undefined; // Can't update built-in templates
+    if (userId && existing.userId !== userId) return undefined;
+
+    const [updated] = await db
+      .update(testCaseTemplates)
+      .set(template)
+      .where(eq(testCaseTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTestCaseTemplate(id: string, userId?: string): Promise<boolean> {
+    // Check ownership before deleting
+    const existing = await this.getTestCaseTemplate(id);
+    if (!existing) return false;
+    if (existing.isBuiltIn) return false; // Can't delete built-in templates
+    if (userId && existing.userId !== userId) return false;
+
+    await db.delete(testCaseTemplates).where(eq(testCaseTemplates.id, id));
+    return true;
+  }
+
+  // Test Case Configurations
+  async getTestCaseConfiguration(promptTestId: string): Promise<TestCaseConfiguration | undefined> {
+    const [config] = await db
+      .select()
+      .from(testCaseConfigurations)
+      .where(eq(testCaseConfigurations.promptTestId, promptTestId));
+    return config;
+  }
+
+  async createTestCaseConfiguration(insertConfig: InsertTestCaseConfiguration): Promise<TestCaseConfiguration> {
+    const [config] = await db.insert(testCaseConfigurations).values(insertConfig).returning();
+    return config;
+  }
+
+  // Model Favorites
+  async getModelFavorites(userId: string): Promise<ModelFavorite[]> {
+    return await db
+      .select()
+      .from(modelFavorites)
+      .where(eq(modelFavorites.userId, userId));
+  }
+
+  async createModelFavorite(insertFavorite: InsertModelFavorite): Promise<ModelFavorite> {
+    const [favorite] = await db.insert(modelFavorites).values(insertFavorite).returning();
+    return favorite;
+  }
+
+  async deleteModelFavorite(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(modelFavorites)
+      .where(and(eq(modelFavorites.id, id), eq(modelFavorites.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Tool Favorites
+  async getToolFavorites(userId: string): Promise<ToolFavorite[]> {
+    return await db
+      .select()
+      .from(toolFavorites)
+      .where(eq(toolFavorites.userId, userId));
+  }
+
+  async createToolFavorite(insertFavorite: InsertToolFavorite): Promise<ToolFavorite> {
+    const [favorite] = await db.insert(toolFavorites).values(insertFavorite).returning();
+    return favorite;
+  }
+
+  async deleteToolFavorite(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(toolFavorites)
+      .where(and(eq(toolFavorites.id, id), eq(toolFavorites.userId, userId)))
+      .returning();
+    return result.length > 0;
   }
 
   // Analytics / Activity Tracking
