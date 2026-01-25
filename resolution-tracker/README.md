@@ -11,6 +11,8 @@ A full-stack TypeScript application for tracking New Year's resolutions with AI-
 - 📝 **Check-ins** - Log progress with detailed notes
 - 🤖 **AI-Powered Insights** - Multi-model analysis (Claude, GPT, Gemini)
 - 📈 **Progress Analytics** - Visualize your journey with charts
+- 📊 **Analytics Dashboard** - Track activity, completion rates, and milestones
+- 👥 **User Roles** - Admin and user role management
 - 🧪 **Prompt Playground** - Test and compare AI model outputs
 - 📊 **AI Analytics Dashboard** - Compare model performance and costs
 - 🔐 **OAuth Authentication** - Google, GitHub, Apple sign-in
@@ -142,11 +144,12 @@ resolution-tracker/
 ## 🗄️ Database Schema
 
 ### Core Tables
-- `users` - User accounts
+- `users` - User accounts (includes role field for admin/user access)
 - `sessions` - Authentication sessions
 - `resolutions` - User goals
 - `milestones` - Resolution checkpoints
 - `check_ins` - Progress updates
+- `user_activity_log` - Activity tracking for analytics
 
 ### AI Tables
 - `ai_insights` - AI-generated analysis
@@ -292,7 +295,45 @@ MIT
 
 Week 1: ✅ Basic resolution tracking + OAuth
 Week 2: ✅ AI model integration + Prompt Playground
-Week 3-10: More features coming!
+Week 3: ✅ Analytics dashboard + User roles
+Week 4-10: More features coming!
+
+## 🔧 Advanced Features
+
+### User Roles and Permissions
+
+The application supports two user roles:
+- **User (default)** - Can manage their own resolutions, check-ins, and view personal analytics
+- **Admin** - Has access to all user features plus:
+  - View global statistics across all users
+  - Access to platform-wide analytics dashboard
+
+#### Setting Admin Users
+
+By default, all users are created with the `user` role. To promote a user to admin:
+
+1. Connect to your PostgreSQL database:
+   ```bash
+   psql $DATABASE_URL
+   ```
+
+2. Update the user's role:
+   ```sql
+   UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';
+   ```
+
+3. The user will have admin access on their next login
+
+### Analytics Dashboard
+
+The Analytics page provides comprehensive insights:
+- **Resolution Statistics** - Total, completed, in-progress counts
+- **Completion Rates** - Track your success percentage
+- **Check-in Activity** - Monitor engagement over time
+- **Milestone Progress** - View completed vs. pending milestones
+- **Activity Feed** - Recent actions and updates
+
+Access the Analytics page from the sidebar navigation. Admin users can view platform-wide statistics, while regular users see their personal analytics.
 
 ---
 
