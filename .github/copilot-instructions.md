@@ -96,6 +96,7 @@ Both commands must complete successfully before telling the user that work is co
 - No TypeScript type errors or compilation issues
 - All existing tests continue to pass
 - No regressions introduced by changes
+- After the checks pass, create a git commit with a clear, descriptive message and push it to the current branch before declaring the work complete.
 
 ## Critical Details
 - **No authentication currently implemented** (passport imported but unused)
