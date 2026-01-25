@@ -8,6 +8,10 @@ import {
   insertPromptTestSchema,
   insertPromptTemplateSchema,
   insertUserFavoriteSchema,
+  insertTestCaseTemplateSchema,
+  insertTestCaseConfigurationSchema,
+  insertModelFavoriteSchema,
+  insertToolFavoriteSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth_integrations/auth";
