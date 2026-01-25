@@ -3,6 +3,18 @@
 ## Project Overview
 **Resolution Tracker** is a full-stack web app for tracking New Year's resolutions during the 10-week AIDB program. Core entities: Users → Resolutions → Milestones + Check-ins (progress tracking).
 
+## Code Quality & Style Standards
+
+### Markdown Files
+All markdown files must follow [markdownlint](https://github.com/DavidAnson/markdownlint) rules defined in `.markdownlintrc.json`:
+- **Line length**: Max 120 characters (except code blocks)
+- **Heading style**: Consistent (ATX style: `# Heading`)
+- **List indentation**: 2 spaces
+- **HTML allowed**: Inline HTML is permitted in markdown
+- **Duplicate headings**: Allowed when nested differently
+
+Install the [markdownlint extension](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint) for VS Code to get real-time linting feedback.
+
 ## Architecture Layers
 
 ### Frontend (`client/src/`)
@@ -97,6 +109,11 @@ Both commands must complete successfully before telling the user that work is co
 - All existing tests continue to pass
 - No regressions introduced by changes
 - After the checks pass, create a git commit with a clear, descriptive message and push it to the current branch before declaring the work complete.
+
+For markdown files, verify they pass markdownlint validation:
+- Install the markdownlint extension in VS Code for real-time feedback
+- Or run the [markdownlint CLI](https://github.com/DavidAnson/markdownlint): `markdownlint "**/*.md"`
+- Configuration is in `.markdownlintrc.json`
 
 ## Shell and OS Compatibility
 

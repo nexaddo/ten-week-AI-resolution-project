@@ -133,6 +133,44 @@ export const insertAiModelUsageSchema = createInsertSchema(aiModelUsage).omit({
 export type InsertAiModelUsage = z.infer<typeof insertAiModelUsageSchema>;
 export type AiModelUsage = typeof aiModelUsage.$inferSelect;
 
+// Prompt Templates - library of pre-defined use cases
+export const useCaseCategories = [
+  "writing",
+  "research",
+  "coding",
+  "analysis",
+  "creative",
+  "education",
+  "business",
+  "general",
+] as const;
+
+export type UseCaseCategory = (typeof useCaseCategories)[number];
+
+export const promptTemplates = pgTable("prompt_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull(), // UseCaseCategory
+  systemPrompt: text("system_prompt"),
+  examplePrompt: text("example_prompt").notNull(),
+  suggestedModels: text("suggested_models"), // JSON array of model names
+  tags: text("tags"), // JSON array of tags
+  isPublic: boolean("is_public").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPromptTemplateSchema = createInsertSchema(promptTemplates).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  category: z.enum(useCaseCategories),
+});
+
+export type InsertPromptTemplate = z.infer<typeof insertPromptTemplateSchema>;
+export type PromptTemplate = typeof promptTemplates.$inferSelect;
+
 // Prompt Test schema - for testing prompts across different models
 export const promptTests = pgTable("prompt_tests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -140,6 +178,9 @@ export const promptTests = pgTable("prompt_tests", {
   prompt: text("prompt").notNull(),
   systemPrompt: text("system_prompt"),
   category: text("category"), // e.g., "creative", "analytical", "code", "general"
+  templateId: varchar("template_id").references(() => promptTemplates.id),
+  tags: text("tags"), // JSON array of tags
+  selectedModels: text("selected_models"), // JSON array of models to test
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -178,6 +219,49 @@ export const insertPromptTestResultSchema = createInsertSchema(promptTestResults
 
 export type InsertPromptTestResult = z.infer<typeof insertPromptTestResultSchema>;
 export type PromptTestResult = typeof promptTestResults.$inferSelect;
+
+// Test Case Configurations - allows custom model and tool selection
+export const testCaseConfigs = pgTable("test_case_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promptTestId: varchar("prompt_test_id").notNull().references(() => promptTests.id),
+  modelName: text("model_name").notNull(),
+  provider: text("provider").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  customParameters: text("custom_parameters"), // JSON for model-specific params
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTestCaseConfigSchema = createInsertSchema(testCaseConfigs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTestCaseConfig = z.infer<typeof insertTestCaseConfigSchema>;
+export type TestCaseConfig = typeof testCaseConfigs.$inferSelect;
+
+// User Favorites - for models and tools
+export const favoriteTypes = ["model", "tool", "template"] as const;
+export type FavoriteType = (typeof favoriteTypes)[number];
+
+export const userFavorites = pgTable("user_favorites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  favoriteType: text("favorite_type").notNull(), // FavoriteType
+  favoriteId: text("favorite_id").notNull(), // model name, tool name, or template id
+  favoriteName: text("favorite_name").notNull(),
+  metadata: text("metadata"), // JSON for additional data
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserFavoriteSchema = createInsertSchema(userFavorites).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  favoriteType: z.enum(favoriteTypes),
+});
+
+export type InsertUserFavorite = z.infer<typeof insertUserFavoriteSchema>;
+export type UserFavorite = typeof userFavorites.$inferSelect;
 
 // Prompt use case types
 export const promptUseCaseTypes = [
