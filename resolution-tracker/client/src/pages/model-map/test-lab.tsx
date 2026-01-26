@@ -1,395 +1,305 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Beaker, Play, Loader2, ChevronDown, ChevronUp, Star, Clock, DollarSign, Zap } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Beaker, Plus, ChevronDown, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { AiModel, UseCase, ModelTest, ModelTestResult } from "@shared/schema";
-import { useLocation } from "wouter";
+import { ModelAvatar } from "@/components/model-avatar";
+import { CreateTestDialog } from "@/components/create-test-dialog";
+import { CompleteTestDialog } from "@/components/complete-test-dialog";
+import type { AiModel, AiTool, ModelTest, ModelTestResult } from "@shared/schema";
+
+// Extended types for populated data
+type PopulatedTestResult = ModelTestResult & { model?: AiModel; tool?: AiTool };
+type PopulatedTest = ModelTest & { results?: PopulatedTestResult[]; useCase?: { category: string } };
 
 export default function TestLabPage() {
-  const [, setLocation] = useLocation();
-  const searchParams = new URLSearchParams(window.location.search);
-  const useCaseId = searchParams.get("useCase");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [selectedTest, setSelectedTest] = useState<PopulatedTest | null>(null);
+  const [selectedResult, setSelectedResult] = useState<PopulatedTestResult | null>(null);
+  const [deleteTestId, setDeleteTestId] = useState<string | null>(null);
+  const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
 
-  const [prompt, setPrompt] = useState("");
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [testName, setTestName] = useState("");
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [expandedResults, setExpandedResults] = useState<Record<string, boolean>>({});
-  const [currentTestId, setCurrentTestId] = useState<string | null>(null);
-
-  // Fetch models
-  const { data: models = [] } = useQuery<AiModel[]>({
-    queryKey: ["/api/model-map/models"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/model-map/models");
-      return res.json();
-    },
-  });
-
-  // Fetch use case if selected
-  const { data: selectedUseCase } = useQuery<UseCase>({
-    queryKey: ["/api/model-map/use-cases", useCaseId],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/model-map/use-cases/${useCaseId}`);
-      return res.json();
-    },
-    enabled: !!useCaseId,
-  });
-
-  // Load use case template when selected
-  useState(() => {
-    if (selectedUseCase) {
-      setPrompt(selectedUseCase.promptTemplate);
-      setTestName(selectedUseCase.title);
-    }
-  });
-
-  // Fetch test history
-  const { data: testHistory = [] } = useQuery<ModelTest[]>({
+  // Fetch tests with results
+  const { data: tests = [], isLoading } = useQuery<PopulatedTest[]>({
     queryKey: ["/api/model-map/tests"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/model-map/tests");
+      const res = await apiRequest("GET", "/api/model-map/tests?includeResults=true");
       return res.json();
     },
   });
 
-  // Fetch results for current test
-  const { data: currentResults = [], isLoading: resultsLoading } = useQuery<(ModelTestResult & { model: AiModel })[]>({
-    queryKey: ["/api/model-map/tests", currentTestId, "results"],
-    queryFn: async () => {
-      if (!currentTestId) return [];
-      const res = await apiRequest("GET", `/api/model-map/tests/${currentTestId}/results`);
-      return res.json();
-    },
-    enabled: !!currentTestId,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      if (data && data.length >= selectedModels.length) return false;
-      return 2000;
-    },
-  });
-
-  const createTestMutation = useMutation({
-    mutationFn: async (data: { title: string; prompt: string; systemPrompt?: string; selectedModelIds: string[]; useCaseId?: string }) => {
-      const res = await apiRequest("POST", "/api/model-map/tests", data);
-      return res.json();
-    },
-    onSuccess: (test: ModelTest) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/model-map/tests"] });
-      setCurrentTestId(test.id);
-    },
-  });
-
-  const rateResultMutation = useMutation({
-    mutationFn: async (data: { testId: string; resultId: string; userRating: number; userNotes?: string }) => {
-      const { testId, resultId, ...body } = data;
-      const res = await apiRequest("PATCH", `/api/model-map/tests/${testId}/results/${resultId}`, body);
-      return res.json();
+  // Delete test mutation
+  const deleteTestMutation = useMutation({
+    mutationFn: async (testId: string) => {
+      await apiRequest("DELETE", `/api/model-map/tests/${testId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/model-map/tests", currentTestId, "results"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/model-map/tests"] });
+      setDeleteTestId(null);
     },
   });
 
-  const handleModelToggle = (modelId: string) => {
-    setSelectedModels((prev) =>
-      prev.includes(modelId) ? prev.filter((id) => id !== modelId) : [...prev, modelId]
-    );
-  };
-
-  const handleRunTest = () => {
-    if (!prompt.trim() || selectedModels.length === 0) return;
-    createTestMutation.mutate({
-      title: testName || "Untitled Test",
-      prompt: prompt.trim(),
-      systemPrompt: systemPrompt.trim() || undefined,
-      selectedModelIds: selectedModels,
-      useCaseId: useCaseId || undefined,
+  const togglePromptExpanded = (testId: string) => {
+    setExpandedPrompts((prev) => {
+      const next = new Set(prev);
+      if (next.has(testId)) {
+        next.delete(testId);
+      } else {
+        next.add(testId);
+      }
+      return next;
     });
   };
 
-  const toggleResultExpand = (resultId: string) => {
-    setExpandedResults((prev) => ({ ...prev, [resultId]: !prev[resultId] }));
+  const handleResultClick = (test: PopulatedTest, result: PopulatedTestResult) => {
+    setSelectedTest(test);
+    setSelectedResult(result);
+    setCompleteDialogOpen(true);
   };
 
-  // Group models by provider
-  const modelsByProvider = models.reduce<Record<string, AiModel[]>>((acc, model) => {
-    acc[model.provider] = acc[model.provider] || [];
-    acc[model.provider].push(model);
-    return acc;
-  }, {});
+  const getStatusBadge = (test: PopulatedTest) => {
+    const results = test.results || [];
+    const completed = results.filter((r) => r.status === "completed" || r.userRating);
+    const pending = results.filter((r) => r.status === "pending" && !r.userRating);
+
+    if (pending.length === results.length) {
+      return <Badge variant="outline">Pending</Badge>;
+    }
+    if (completed.length === results.length) {
+      return <Badge className="bg-green-100 text-green-700">Completed</Badge>;
+    }
+    return <Badge className="bg-amber-100 text-amber-700">In Progress</Badge>;
+  };
+
+  const getCategoryColor = (category?: string) => {
+    const colors: Record<string, string> = {
+      "Strategic Analysis": "bg-purple-100 text-purple-700",
+      "Writing": "bg-blue-100 text-blue-700",
+      "Code": "bg-green-100 text-green-700",
+      "Research": "bg-amber-100 text-amber-700",
+      "Automation": "bg-cyan-100 text-cyan-700",
+      "Visual Design": "bg-pink-100 text-pink-700",
+      "Audio/Video": "bg-red-100 text-red-700",
+    };
+    return colors[category || ""] || "bg-gray-100 text-gray-700";
+  };
 
   return (
-    <div className="container max-w-6xl mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Test Lab</h1>
-        <p className="text-muted-foreground">
-          Run the same prompt against multiple models to compare their outputs side-by-side.
-        </p>
+    <div className="container max-w-5xl mx-auto py-8 px-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+            <Beaker className="h-8 w-8" />
+            Test Lab
+          </h1>
+          <p className="text-muted-foreground">
+            Run prompts against your models and log the results
+          </p>
+        </div>
+        <Button onClick={() => setCreateDialogOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Start a New Test
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Test Configuration */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Beaker className="h-5 w-5" />
-                Configure Test
-              </CardTitle>
-              {selectedUseCase && (
-                <CardDescription>
-                  Using template: <span className="font-medium">{selectedUseCase.title}</span>
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="test-name">Test Name</Label>
-                <Input
-                  id="test-name"
-                  placeholder="e.g., Code Review Comparison"
-                  value={testName}
-                  onChange={(e) => setTestName(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="system-prompt">System Prompt (Optional)</Label>
-                <Textarea
-                  id="system-prompt"
-                  placeholder="Set the context and behavior for the models..."
-                  value={systemPrompt}
-                  onChange={(e) => setSystemPrompt(e.target.value)}
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="prompt">User Prompt</Label>
-                <Textarea
-                  id="prompt"
-                  placeholder="Enter your prompt here..."
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  rows={6}
-                  className="font-mono text-sm"
-                />
-              </div>
-
-              <Button
-                onClick={handleRunTest}
-                disabled={!prompt.trim() || selectedModels.length === 0 || createTestMutation.isPending}
-                className="w-full"
-              >
-                {createTestMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Running Test...
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4 mr-2" />
-                    Run Test ({selectedModels.length} model{selectedModels.length !== 1 ? "s" : ""})
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Results */}
-          {currentTestId && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Results</CardTitle>
-                <CardDescription>
-                  {resultsLoading
-                    ? "Waiting for model responses..."
-                    : `${currentResults.length} of ${selectedModels.length} complete`}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {currentResults.map((result) => (
-                  <Card key={result.id} className="border-muted">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <CardTitle className="text-base">{result.model?.name}</CardTitle>
-                          <Badge variant="outline">{result.model?.provider}</Badge>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          {result.latencyMs && (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {(result.latencyMs / 1000).toFixed(2)}s
-                            </span>
-                          )}
-                          {result.totalTokens && (
-                            <span className="flex items-center gap-1">
-                              <Zap className="h-3 w-3" />
-                              {result.totalTokens} tokens
-                            </span>
-                          )}
-                          {result.estimatedCost && (
-                            <span className="flex items-center gap-1">
-                              <DollarSign className="h-3 w-3" />
-                              ${result.estimatedCost}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div
-                        className={`prose prose-sm dark:prose-invert max-w-none ${
-                          expandedResults[result.id] ? "" : "line-clamp-4"
-                        }`}
-                      >
-                        <pre className="whitespace-pre-wrap text-sm bg-muted p-3 rounded-md">
-                          {result.output || result.errorMessage || "Waiting..."}
-                        </pre>
-                      </div>
-                      
-                      <div className="flex items-center justify-between mt-3">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => toggleResultExpand(result.id)}
-                        >
-                          {expandedResults[result.id] ? (
-                            <>
-                              <ChevronUp className="h-4 w-4 mr-1" />
-                              Collapse
-                            </>
-                          ) : (
-                            <>
-                              <ChevronDown className="h-4 w-4 mr-1" />
-                              Expand
-                            </>
-                          )}
-                        </Button>
-
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm text-muted-foreground mr-2">Rate:</span>
-                          {[1, 2, 3, 4, 5].map((rating) => (
-                            <Button
-                              key={rating}
-                              variant={result.userRating === rating ? "default" : "outline"}
-                              size="sm"
-                              className="w-8 h-8 p-0"
-                              onClick={() =>
-                                rateResultMutation.mutate({
-                                  testId: currentTestId,
-                                  resultId: result.id,
-                                  userRating: rating,
-                                })
-                              }
-                            >
-                              {rating}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-
-                {resultsLoading && currentResults.length < selectedModels.length && (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-muted-foreground">
-                      Waiting for {selectedModels.length - currentResults.length} more response(s)...
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+      {/* Test List */}
+      {isLoading ? (
+        <div className="text-center py-12 text-muted-foreground">
+          Loading tests...
         </div>
-
-        {/* Model Selection Sidebar */}
+      ) : tests.length === 0 ? (
+        <Card className="py-12">
+          <CardContent className="text-center">
+            <Beaker className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No tests yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Create your first test to start comparing models
+            </p>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Start a New Test
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Select Models</CardTitle>
-              <CardDescription>
-                Choose which models to test against
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {Object.entries(modelsByProvider).map(([provider, providerModels]) => (
-                <div key={provider} className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">{provider}</h4>
-                  {providerModels.map((model) => (
-                    <div key={model.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={model.id}
-                        checked={selectedModels.includes(model.id)}
-                        onCheckedChange={() => handleModelToggle(model.id)}
-                      />
-                      <label
-                        htmlFor={model.id}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {model.name}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              ))}
-
-              <div className="pt-2 border-t">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setSelectedModels(models.map((m) => m.id))}
-                >
-                  Select All
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Test History */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Tests</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {testHistory.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No tests yet</p>
-              ) : (
-                <div className="space-y-2">
-                  {testHistory.slice(0, 5).map((test) => (
-                    <div
-                      key={test.id}
-                      className={`p-2 rounded-md cursor-pointer hover:bg-muted transition-colors ${
-                        currentTestId === test.id ? "bg-muted" : ""
-                      }`}
-                      onClick={() => setCurrentTestId(test.id)}
-                    >
-                      <p className="text-sm font-medium line-clamp-1">{test.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(test.createdAt).toLocaleDateString()}
+          {tests.map((test) => (
+            <Card key={test.id} className="overflow-hidden">
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    {test.useCase?.category && (
+                      <Badge className={getCategoryColor(test.useCase.category)}>
+                        {test.useCase.category}
+                      </Badge>
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-lg">{test.title}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Created {new Date(test.createdAt).toLocaleDateString()} at{" "}
+                        {new Date(test.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
-                  ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(test)}
+                    <Button variant="outline" size="sm">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Test More Models
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteTestId(test.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {/* Model Result Cards */}
+                <div className="flex flex-wrap gap-3">
+                  {(test.results || []).map((result) => {
+                    const item = result.model || result.tool;
+                    const hasRating = result.userRating || result.accuracyRating;
+                    return (
+                      <div
+                        key={result.id}
+                        className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors min-w-[200px]"
+                        onClick={() => handleResultClick(test, result)}
+                      >
+                        <ModelAvatar
+                          name={item?.name || "Unknown"}
+                          shortName={item?.shortName}
+                          provider={item?.provider || ""}
+                          size="md"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {item?.name || "Unknown"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {item?.provider}
+                          </p>
+                          {!hasRating && (
+                            <p className="text-xs text-primary mt-1">
+                              Click to add results
+                            </p>
+                          )}
+                          {hasRating && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className="text-xs text-muted-foreground">
+                                Rated: {result.accuracyRating || result.userRating}/5
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* View Prompt Accordion */}
+                <Collapsible
+                  open={expandedPrompts.has(test.id)}
+                  onOpenChange={() => togglePromptExpanded(test.id)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                      View Prompt
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${
+                          expandedPrompts.has(test.id) ? "rotate-180" : ""
+                        }`}
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3">
+                    <div className="bg-muted rounded-lg p-4">
+                      {test.systemPrompt && (
+                        <div className="mb-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">
+                            System Prompt
+                          </p>
+                          <pre className="text-sm whitespace-pre-wrap">
+                            {test.systemPrompt}
+                          </pre>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">
+                          User Prompt
+                        </p>
+                        <pre className="text-sm whitespace-pre-wrap">{test.prompt}</pre>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </div>
+      )}
+
+      {/* Create Test Dialog */}
+      <CreateTestDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
+
+      {/* Complete Test Dialog */}
+      <CompleteTestDialog
+        open={completeDialogOpen}
+        onOpenChange={setCompleteDialogOpen}
+        test={selectedTest}
+        result={selectedResult}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/model-map/tests"] });
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTestId} onOpenChange={() => setDeleteTestId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Test?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the test and all its results. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTestId && deleteTestMutation.mutate(deleteTestId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

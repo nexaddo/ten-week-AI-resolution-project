@@ -91,15 +91,15 @@ export class ModelMapMemStorage implements IModelMapStorage {
 
   private seedDefaultModels() {
     const defaultModels: Omit<AiModel, "id" | "createdAt">[] = [
-      { name: "Claude 4.5 Sonnet", provider: "Anthropic", modelId: "claude-sonnet-4-20250514", description: "Fast, intelligent model for everyday tasks", capabilities: ["text", "code", "vision"], isActive: true },
-      { name: "Claude Opus 4.5", provider: "Anthropic", modelId: "claude-opus-4-20250514", description: "Most capable model for complex tasks", capabilities: ["text", "code", "vision"], isActive: true },
-      { name: "GPT-4o", provider: "OpenAI", modelId: "gpt-4o", description: "OpenAI's flagship multimodal model", capabilities: ["text", "code", "vision", "audio"], isActive: true },
-      { name: "GPT-4 Turbo", provider: "OpenAI", modelId: "gpt-4-turbo", description: "Fast GPT-4 with vision capabilities", capabilities: ["text", "code", "vision"], isActive: true },
-      { name: "Gemini 2.5 Pro", provider: "Google", modelId: "gemini-2.5-pro", description: "Google's most capable model", capabilities: ["text", "code", "vision"], isActive: true },
-      { name: "Gemini 2.5 Flash", provider: "Google", modelId: "gemini-2.5-flash", description: "Fast and efficient model", capabilities: ["text", "code", "vision"], isActive: true },
-      { name: "DeepSeek v3", provider: "DeepSeek", modelId: "deepseek-chat", description: "Cost-effective reasoning model", capabilities: ["text", "code"], isActive: true },
-      { name: "o1", provider: "OpenAI", modelId: "o1", description: "OpenAI reasoning model", capabilities: ["text", "code"], isActive: true },
-      { name: "o3-mini", provider: "OpenAI", modelId: "o3-mini", description: "Efficient reasoning model", capabilities: ["text", "code"], isActive: true },
+      { name: "Claude 4.5 Sonnet", shortName: "C4", provider: "Anthropic", modelId: "claude-sonnet-4-20250514", description: "Fast, intelligent model for everyday tasks", capabilities: ["text", "code", "vision"], isFavorite: true, isActive: true },
+      { name: "Claude Opus 4.5", shortName: "CO", provider: "Anthropic", modelId: "claude-opus-4-20250514", description: "Most capable model for complex tasks", capabilities: ["text", "code", "vision"], isFavorite: false, isActive: true },
+      { name: "GPT-4o", shortName: "4O", provider: "OpenAI", modelId: "gpt-4o", description: "OpenAI's flagship multimodal model", capabilities: ["text", "code", "vision", "audio"], isFavorite: true, isActive: true },
+      { name: "GPT-4 Turbo", shortName: "4T", provider: "OpenAI", modelId: "gpt-4-turbo", description: "Fast GPT-4 with vision capabilities", capabilities: ["text", "code", "vision"], isFavorite: false, isActive: true },
+      { name: "Gemini 2.5 Pro", shortName: "G2P", provider: "Google", modelId: "gemini-2.5-pro", description: "Google's most capable model", capabilities: ["text", "code", "vision"], isFavorite: false, isActive: true },
+      { name: "Gemini 2.5 Flash", shortName: "G2F", provider: "Google", modelId: "gemini-2.5-flash", description: "Fast and efficient model", capabilities: ["text", "code", "vision"], isFavorite: false, isActive: true },
+      { name: "DeepSeek v3.2", shortName: "DV", provider: "DeepSeek", modelId: "deepseek-chat", description: "Cost-effective reasoning model", capabilities: ["text", "code"], isFavorite: false, isActive: true },
+      { name: "o1", shortName: "O1", provider: "OpenAI", modelId: "o1", description: "OpenAI reasoning model", capabilities: ["text", "code"], isFavorite: false, isActive: true },
+      { name: "o3-mini", shortName: "O3", provider: "OpenAI", modelId: "o3-mini", description: "Efficient reasoning model", capabilities: ["text", "code"], isFavorite: false, isActive: true },
     ];
 
     defaultModels.forEach((model) => {
@@ -110,14 +110,14 @@ export class ModelMapMemStorage implements IModelMapStorage {
 
   private seedDefaultTools() {
     const defaultTools: Omit<AiTool, "id" | "createdAt">[] = [
-      { name: "Cursor", provider: "Cursor", description: "AI-powered code editor", url: "https://cursor.sh", category: "IDE", isActive: true },
-      { name: "GitHub Copilot", provider: "GitHub", description: "AI pair programmer", url: "https://github.com/features/copilot", category: "IDE", isActive: true },
-      { name: "v0", provider: "Vercel", description: "AI UI component generator", url: "https://v0.dev", category: "Code Gen", isActive: true },
-      { name: "Bolt", provider: "StackBlitz", description: "AI full-stack app builder", url: "https://bolt.new", category: "Code Gen", isActive: true },
-      { name: "Midjourney", provider: "Midjourney", description: "AI image generation", url: "https://midjourney.com", category: "Design", isActive: true },
-      { name: "DALL-E 3", provider: "OpenAI", description: "AI image generation", url: "https://openai.com/dall-e-3", category: "Design", isActive: true },
-      { name: "Eleven Labs", provider: "ElevenLabs", description: "AI voice synthesis", url: "https://elevenlabs.io", category: "Audio", isActive: true },
-      { name: "Perplexity", provider: "Perplexity", description: "AI search and research", url: "https://perplexity.ai", category: "Research", isActive: true },
+      { name: "Cursor", shortName: "CU", provider: "Cursor", description: "AI-powered code editor", url: "https://cursor.sh", category: "IDE", isActive: true },
+      { name: "GitHub Copilot", shortName: "CP", provider: "GitHub", description: "AI pair programmer", url: "https://github.com/features/copilot", category: "IDE", isActive: true },
+      { name: "v0", shortName: "V0", provider: "Vercel", description: "AI UI component generator", url: "https://v0.dev", category: "Code Gen", isActive: true },
+      { name: "Bolt", shortName: "BL", provider: "StackBlitz", description: "AI full-stack app builder", url: "https://bolt.new", category: "Code Gen", isActive: true },
+      { name: "Midjourney", shortName: "MJ", provider: "Midjourney", description: "AI image generation", url: "https://midjourney.com", category: "Design", isActive: true },
+      { name: "DALL-E 3", shortName: "DE", provider: "OpenAI", description: "AI image generation", url: "https://openai.com/dall-e-3", category: "Design", isActive: true },
+      { name: "Eleven v3", shortName: "EV", provider: "ElevenLabs", description: "AI voice synthesis", url: "https://elevenlabs.io", category: "Audio", isActive: true },
+      { name: "Perplexity", shortName: "PX", provider: "Perplexity", description: "AI search and research", url: "https://perplexity.ai", category: "Research", isActive: true },
     ];
 
     defaultTools.forEach((tool) => {
@@ -382,8 +382,10 @@ Output format:
     const aiModel: AiModel = {
       ...model,
       id,
+      shortName: model.shortName ?? null,
       description: model.description ?? null,
       capabilities: model.capabilities ?? null,
+      isFavorite: model.isFavorite ?? false,
       isActive: model.isActive ?? true,
       createdAt: new Date(),
     };
@@ -413,6 +415,7 @@ Output format:
     const aiTool: AiTool = {
       ...tool,
       id,
+      shortName: tool.shortName ?? null,
       description: tool.description ?? null,
       url: tool.url ?? null,
       category: tool.category ?? null,
@@ -647,6 +650,7 @@ Output format:
     const testResult: ModelTestResult = {
       ...result,
       id,
+      toolId: result.toolId ?? null,
       output: result.output ?? null,
       promptTokens: result.promptTokens ?? null,
       completionTokens: result.completionTokens ?? null,
@@ -655,6 +659,10 @@ Output format:
       estimatedCost: result.estimatedCost ?? null,
       errorMessage: result.errorMessage ?? null,
       userRating: result.userRating ?? null,
+      accuracyRating: result.accuracyRating ?? null,
+      styleRating: result.styleRating ?? null,
+      speedRating: result.speedRating ?? null,
+      xFactor: result.xFactor ?? null,
       userNotes: result.userNotes ?? null,
       status: result.status ?? "pending",
       createdAt: new Date(),

@@ -22,10 +22,12 @@ export type UseCaseCategory = (typeof useCaseCategories)[number];
 export const aiModels = pgTable("ai_models", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  shortName: text("short_name"), // Short abbreviation for avatar (e.g., "C4" for Claude 4.5 Sonnet)
   provider: text("provider").notNull(), // anthropic, openai, google, etc.
   modelId: text("model_id").notNull(), // e.g., claude-3-opus, gpt-4, gemini-pro
   description: text("description"),
   capabilities: jsonb("capabilities").$type<string[]>(), // e.g., ["text", "code", "vision"]
+  isFavorite: boolean("is_favorite").notNull().default(false), // Featured/starred model
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -42,6 +44,7 @@ export type AiModel = typeof aiModels.$inferSelect;
 export const aiTools = pgTable("ai_tools", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  shortName: text("short_name"), // Short abbreviation for avatar (e.g., "CU" for Cursor)
   provider: text("provider").notNull(),
   description: text("description"),
   url: text("url"),
@@ -157,11 +160,17 @@ export const insertModelTestSchema = createInsertSchema(modelTests).omit({
 export type InsertModelTest = z.infer<typeof insertModelTestSchema>;
 export type ModelTest = typeof modelTests.$inferSelect;
 
+// Speed rating options
+export const speedRatings = ["slow", "medium", "fast"] as const;
+export type SpeedRating = (typeof speedRatings)[number];
+
 // Model Test Results - results from each model
 export const modelTestResults = pgTable("model_test_results", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   testId: varchar("test_id").notNull().references(() => modelTests.id),
   modelId: varchar("model_id").notNull().references(() => aiModels.id),
+  // Tool ID for when testing tools instead of models
+  toolId: varchar("tool_id").references(() => aiTools.id),
   output: text("output"),
   promptTokens: integer("prompt_tokens"),
   completionTokens: integer("completion_tokens"),
@@ -170,7 +179,12 @@ export const modelTestResults = pgTable("model_test_results", {
   estimatedCost: text("estimated_cost"),
   status: text("status").notNull().default("pending"), // pending, running, success, error
   errorMessage: text("error_message"),
-  userRating: integer("user_rating"), // 1-5 stars
+  // Enhanced rating fields
+  userRating: integer("user_rating"), // 1-5 stars (overall)
+  accuracyRating: integer("accuracy_rating"), // 1-5 stars
+  styleRating: integer("style_rating"), // 1-5 stars
+  speedRating: text("speed_rating"), // slow, medium, fast
+  xFactor: integer("x_factor"), // 1-3 sparkles
   userNotes: text("user_notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
