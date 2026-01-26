@@ -22,6 +22,7 @@ import {
   Brain,
   FlaskConical,
   ExternalLink,
+  BarChart3,
   Map,
   BookOpen,
   Beaker,
@@ -35,6 +36,7 @@ const mainNavItems = [
   { title: "All Resolutions", url: "/resolutions", icon: Target },
   { title: "Calendar", url: "/calendar", icon: Calendar },
   { title: "Achievements", url: "/achievements", icon: Trophy },
+  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "AI Analytics", url: "/ai-dashboard", icon: Brain },
   { title: "Prompt Playground", url: "/prompt-playground", icon: FlaskConical },
 ];

@@ -421,3 +421,4 @@ resolution-tracker/coverage
 resolution-tracker/backups
 resolution-tracker/.env.nas
 .claude/settings.local.json
+resolution-tracker/.env.production

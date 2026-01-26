@@ -24,6 +24,7 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
 
   // Google Gemini
   "gemini-2.0-flash": { inputCostPerMTok: 0.1, outputCostPerMTok: 0.4 },
+  "gemini-1.5-pro": { inputCostPerMTok: 1.25, outputCostPerMTok: 5 },
   "gemini-1.5-flash": { inputCostPerMTok: 0.075, outputCostPerMTok: 0.3 },
 };
 

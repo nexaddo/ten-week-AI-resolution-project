@@ -3,6 +3,18 @@
 ## Project Overview
 **Resolution Tracker** is a full-stack web app for tracking New Year's resolutions during the 10-week AIDB program. Core entities: Users → Resolutions → Milestones + Check-ins (progress tracking).
 
+## Code Quality & Style Standards
+
+### Markdown Files
+All markdown files must follow [markdownlint](https://github.com/DavidAnson/markdownlint) rules defined in `.markdownlintrc.json`:
+- **Line length**: Max 120 characters (except code blocks)
+- **Heading style**: Consistent (ATX style: `# Heading`)
+- **List indentation**: 2 spaces
+- **HTML allowed**: Inline HTML is permitted in markdown
+- **Duplicate headings**: Allowed when nested differently
+
+Install the [markdownlint extension](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint) for VS Code to get real-time linting feedback.
+
 ## Architecture Layers
 
 ### Frontend (`client/src/`)
@@ -82,6 +94,53 @@ npm run check    # TypeScript check without emit
 - **Storage logic** → implement in `storage.ts` (MemStorage or swap for database driver)
 - **React components** → follow naming: `ComponentName.tsx`, use Shadcn UI primitives
 - **Client-side requests** → use `apiRequest()` + React Query hooks from `lib/queryClient.ts`
+
+## Completion Verification
+Before declaring any task complete, **always run the following checks**:
+
+```bash
+cd resolution-tracker
+npm run check    # TypeScript compilation check - must pass with no errors
+npm test         # Run all tests - must pass with no failures
+```
+
+Both commands must complete successfully before telling the user that work is complete. This ensures:
+- No TypeScript type errors or compilation issues
+- All existing tests continue to pass
+- No regressions introduced by changes
+- After the checks pass, create a git commit with a clear, descriptive message and push it to the current branch before declaring the work complete.
+
+For markdown files, verify they pass markdownlint validation:
+- Install the markdownlint extension in VS Code for real-time feedback
+- Or run the [markdownlint CLI](https://github.com/DavidAnson/markdownlint): `markdownlint "**/*.md"`
+- Configuration is in `.markdownlintrc.json`
+
+## Shell and OS Compatibility
+
+**Before running any shell commands**, check the user's OS from the environment info:
+- **Windows**: Use PowerShell syntax (available shells: PowerShell, cmd)
+  - PowerShell string escaping: Use single quotes `'...'` for literal strings with backticks
+  - Use `@'...'@` (here-strings) for multi-line strings with special characters
+  - Backticks are escape characters in PowerShell (e.g., `` `n `` = newline)
+  - Use double quotes with escaping only when variable interpolation is needed
+- **macOS/Linux**: Use bash/zsh syntax
+  - Standard bash string escaping with single/double quotes
+  - Use `\` for escaping special characters
+
+**Command format examples**:
+```powershell
+# PowerShell (Windows)
+Get-ChildItem -Path "C:\folder"
+$env:VAR = "value"
+'String with `backticks` needs single quotes'
+```
+
+```bash
+# Bash (macOS/Linux)
+ls -la /folder
+export VAR="value"
+echo "String with \$variable"
+```
 
 ## Critical Details
 - **No authentication currently implemented** (passport imported but unused)

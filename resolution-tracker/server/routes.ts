@@ -2,7 +2,18 @@ import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
 import { modelMapStorage } from "./modelMapStorage";
-import { insertResolutionSchema, insertMilestoneSchema, insertCheckInSchema, insertPromptTestSchema } from "@shared/schema";
+import {
+  insertResolutionSchema,
+  insertMilestoneSchema,
+  insertCheckInSchema,
+  insertPromptTestSchema,
+  insertPromptTemplateSchema,
+  insertUserFavoriteSchema,
+  insertTestCaseTemplateSchema,
+  insertTestCaseConfigurationSchema,
+  insertModelFavoriteSchema,
+  insertToolFavoriteSchema,
+} from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth_integrations/auth";
 import rateLimit from "express-rate-limit";
@@ -11,6 +22,59 @@ import { PromptTester } from "./ai/promptTester";
 import type { ModelSelectionStrategy } from "./ai/types";
 import { log } from "./index";
 import { pool } from "./db";
+import { promptTemplateSeeds } from "./ai/promptTemplateSeeds";
+import { db } from "./db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+// Middleware to check if user is admin
+async function isAdmin(req: any, res: any, next: any) {
+  try {
+    const userId = req.user?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden: Admin access required" });
+    }
+
+    next();
+  } catch (error) {
+    log(`Admin check failed: ${error}`);
+    res.status(500).json({ error: "Failed to verify admin status" });
+  }
+}
+
+// Middleware to track API performance metrics
+function apiMetricsMiddleware(req: any, res: any, next: any) {
+  const startTime = Date.now();
+  
+  // Store original end function
+  const originalEnd = res.end;
+  
+  // Override end function to log metrics
+  res.end = function(...args: any[]) {
+    const responseTime = Date.now() - startTime;
+    const userId = req.user?.claims?.sub || null;
+    
+    // Log the metric asynchronously (don't block response)
+    storage.logApiMetric({
+      userId,
+      endpoint: req.path,
+      method: req.method,
+      statusCode: res.statusCode,
+      responseTimeMs: responseTime,
+    }).catch((err) => log(`Failed to log API metric: ${err}`));
+    
+    // Call original end function
+    return originalEnd.apply(res, args);
+  };
+  
+  next();
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -30,6 +94,9 @@ export async function registerRoutes(
 
   // Apply global rate limiting to all API routes
   app.use("/api", apiLimiter);
+  
+  // Apply performance tracking to all API routes
+  app.use("/api", apiMetricsMiddleware);
 
   // Rate limiter for milestone-related routes to mitigate abuse
   const milestoneLimiter = rateLimit({
@@ -96,6 +163,16 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const parsed = insertResolutionSchema.parse(req.body);
       const resolution = await storage.createResolution({ ...parsed, userId });
+      
+      // Log activity
+      await storage.logUserActivity({
+        userId,
+        action: "resolution_created",
+        entityType: "resolution",
+        entityId: resolution.id,
+        metadata: JSON.stringify({ title: resolution.title, category: resolution.category }),
+      });
+      
       res.status(201).json(resolution);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -282,6 +359,15 @@ export async function registerRoutes(
         );
       }
 
+      // Log activity
+      await storage.logUserActivity({
+        userId,
+        action: "check_in_added",
+        entityType: "check_in",
+        entityId: checkIn.id,
+        metadata: JSON.stringify({ resolutionId: parsed.resolutionId }),
+      });
+
       res.status(201).json(checkIn);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -380,12 +466,21 @@ export async function registerRoutes(
         userId,
       });
 
-      // Run the prompt against all AI models asynchronously
+      // Parse selected models if provided
+      const selectedModels = promptTest.selectedModels 
+        ? JSON.parse(promptTest.selectedModels) 
+        : undefined;
+
+      // Run the prompt against selected or all AI models asynchronously
       const tester = new PromptTester(storage);
-      tester.testPrompt(promptTest.id, {
-        prompt: promptTest.prompt,
-        systemPrompt: promptTest.systemPrompt || undefined,
-      });
+      tester.testPrompt(
+        promptTest.id, 
+        {
+          prompt: promptTest.prompt,
+          systemPrompt: promptTest.systemPrompt || undefined,
+        },
+        selectedModels
+      );
 
       res.status(201).json(promptTest);
     } catch (error) {
@@ -849,6 +944,621 @@ export async function registerRoutes(
     } catch (error) {
       log(`Failed to fetch recommendations: ${error}`);
       res.status(500).json({ error: "Failed to fetch recommendations" });
+    }
+  });
+
+  // ============================================
+  // PROMPT TEMPLATE ROUTES (from prompt-playground-enhanced)
+  // ============================================
+
+  // Prompt Template endpoints
+  app.get("/api/prompt-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const category = req.query.category as string | undefined;
+      const templates = await storage.getPromptTemplates(category);
+      res.json(templates);
+    } catch (error) {
+      log(`Failed to fetch prompt templates: ${error}`);
+      res.status(500).json({ error: "Failed to fetch prompt templates" });
+    }
+  });
+
+  app.get("/api/prompt-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const template = await storage.getPromptTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      log(`Failed to fetch prompt template: ${error}`);
+      res.status(500).json({ error: "Failed to fetch template" });
+    }
+  });
+
+  app.post("/api/prompt-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = insertPromptTemplateSchema.parse(req.body);
+      
+      const template = await storage.createPromptTemplate({
+        ...parsed,
+        createdBy: userId,
+      });
+
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      log(`Failed to create prompt template: ${error}`);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
+  app.patch("/api/prompt-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const updated = await storage.updatePromptTemplate(req.params.id, req.body);
+      if (!updated) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      log(`Failed to update prompt template: ${error}`);
+      res.status(500).json({ error: "Failed to update template" });
+    }
+  });
+
+  app.delete("/api/prompt-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const deleted = await storage.deletePromptTemplate(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to delete prompt template: ${error}`);
+      res.status(500).json({ error: "Failed to delete template" });
+    }
+  });
+
+  // Seed prompt templates (one-time initialization)
+  app.post("/api/prompt-templates/seed", isAuthenticated, async (req: any, res) => {
+    try {
+      const existing = await storage.getPromptTemplates();
+      if (existing.length > 0) {
+        return res.json({ message: "Templates already seeded", count: existing.length });
+      }
+
+      const created = await Promise.all(
+        promptTemplateSeeds.map(seed => storage.createPromptTemplate(seed))
+      );
+
+      res.json({ message: "Templates seeded successfully", count: created.length });
+    } catch (error) {
+      log(`Failed to seed prompt templates: ${error}`);
+      res.status(500).json({ error: "Failed to seed templates" });
+    }
+  });
+
+  // User Favorites endpoints
+  app.get("/api/favorites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const favoriteType = req.query.type as string | undefined;
+      const favorites = await storage.getUserFavorites(userId, favoriteType);
+      res.json(favorites);
+    } catch (error) {
+      log(`Failed to fetch favorites: ${error}`);
+      res.status(500).json({ error: "Failed to fetch favorites" });
+    }
+  });
+
+  app.post("/api/favorites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = insertUserFavoriteSchema.parse(req.body);
+
+      // Check if already favorited
+      const existing = await storage.getFavorite(userId, parsed.favoriteType, parsed.favoriteId);
+      if (existing) {
+        return res.status(409).json({ error: "Already favorited" });
+      }
+
+      const favorite = await storage.createFavorite({
+        ...parsed,
+        userId,
+      });
+
+      res.status(201).json(favorite);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      log(`Failed to create favorite: ${error}`);
+      res.status(500).json({ error: "Failed to create favorite" });
+    }
+  });
+
+  app.delete("/api/favorites/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteFavorite(req.params.id, userId);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Favorite not found" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to delete favorite: ${error}`);
+      res.status(500).json({ error: "Failed to delete favorite" });
+    }
+  });
+
+  // Model Map / Analytics endpoint
+  app.get("/api/ai/model-map", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get all prompt test results for the user
+      const tests = await storage.getPromptTests(userId);
+      const allResults = await Promise.all(
+        tests.map(test => storage.getPromptTestResults(test.id))
+      );
+
+      // Group by category and model
+      const categoryMap: Record<string, Record<string, any[]>> = {};
+
+      for (let i = 0; i < tests.length; i++) {
+        const test = tests[i];
+        const results = allResults[i];
+        const category = test.category || "general";
+        if (!categoryMap[category]) {
+          categoryMap[category] = {};
+        }
+
+        for (const result of results) {
+          if (!categoryMap[category][result.modelName]) {
+            categoryMap[category][result.modelName] = [];
+          }
+          categoryMap[category][result.modelName].push({
+            latency: result.latencyMs,
+            cost: parseFloat(result.estimatedCost),
+            tokens: result.totalTokens,
+            rating: result.userRating,
+            status: result.status,
+          });
+        }
+      }
+
+      // Calculate aggregate stats for each model in each category
+      const modelMap = Object.entries(categoryMap).map(([category, models]) => {
+        const modelStats = Object.entries(models).map(([modelName, results]) => {
+          const successfulResults = results.filter(r => r.status === "success");
+          const count = results.length;
+          const successCount = successfulResults.length;
+          
+          if (successCount === 0) {
+            return {
+              modelName,
+              count,
+              successRate: 0,
+              avgLatency: 0,
+              avgCost: 0,
+              avgRating: null,
+            };
+          }
+
+          const avgLatency = successfulResults.reduce((sum, r) => sum + r.latency, 0) / successCount;
+          const avgCost = successfulResults.reduce((sum, r) => sum + r.cost, 0) / successCount;
+          const ratedResults = successfulResults.filter(r => r.rating !== null);
+          const avgRating = ratedResults.length > 0
+            ? ratedResults.reduce((sum, r) => sum + (r.rating || 0), 0) / ratedResults.length
+            : null;
+
+          return {
+            modelName,
+            count,
+            successRate: (successCount / count) * 100,
+            avgLatency: Math.round(avgLatency),
+            avgCost: avgCost.toFixed(6),
+            avgRating: avgRating ? avgRating.toFixed(1) : null,
+          };
+        });
+
+        return {
+          category,
+          models: modelStats,
+        };
+      });
+
+      res.json(modelMap);
+    } catch (error) {
+      log(`Failed to generate model map: ${error}`);
+      res.status(500).json({ error: "Failed to generate model map" });
+    }
+  });
+
+  // Test Case Templates
+  app.get("/api/test-case-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const templates = await storage.getTestCaseTemplates(userId);
+      res.json(templates);
+    } catch (error) {
+      log(`Failed to get test case templates: ${error}`);
+      res.status(500).json({ error: "Failed to get test case templates" });
+    }
+  });
+
+  app.get("/api/test-case-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const template = await storage.getTestCaseTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      // Non-built-in templates should only be accessible to their creator
+      if (!template.isBuiltIn && template.userId !== userId) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      log(`Failed to get test case template: ${error}`);
+      res.status(500).json({ error: "Failed to get test case template" });
+    }
+  });
+
+  app.post("/api/test-case-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = insertTestCaseTemplateSchema.parse({
+        ...req.body,
+        isBuiltIn: false, // User-created templates are never built-in
+        userId,
+      });
+
+      const template = await storage.createTestCaseTemplate(parsed);
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      log(`Failed to create test case template: ${error}`);
+      res.status(500).json({ error: "Failed to create test case template" });
+    }
+  });
+
+  app.patch("/api/test-case-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = insertTestCaseTemplateSchema.partial().parse(req.body);
+      const updated = await storage.updateTestCaseTemplate(req.params.id, parsed, userId);
+
+      if (!updated) {
+        return res.status(404).json({ error: "Template not found or unauthorized" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      log(`Failed to update test case template: ${error}`);
+      res.status(500).json({ error: "Failed to update test case template" });
+    }
+  });
+
+  app.delete("/api/test-case-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteTestCaseTemplate(req.params.id, userId);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Template not found or unauthorized" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to delete test case template: ${error}`);
+      res.status(500).json({ error: "Failed to delete test case template" });
+    }
+  });
+
+  // Test Case Configurations
+  app.get("/api/test-case-configurations/:promptTestId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      // Verify user owns the prompt test
+      const test = await storage.getPromptTest(req.params.promptTestId, userId);
+      if (!test) {
+        return res.status(404).json({ error: "Test configuration not found" });
+      }
+      const config = await storage.getTestCaseConfiguration(req.params.promptTestId);
+      res.json(config);
+    } catch (error) {
+      log(`Failed to get test case configuration: ${error}`);
+      res.status(500).json({ error: "Failed to get test case configuration" });
+    }
+  });
+
+  app.post("/api/test-case-configurations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = insertTestCaseConfigurationSchema.parse(req.body);
+      // Verify user owns the prompt test before creating config
+      const test = await storage.getPromptTest(parsed.promptTestId, userId);
+      if (!test) {
+        return res.status(404).json({ error: "Prompt test not found" });
+      }
+      const config = await storage.createTestCaseConfiguration(parsed);
+      res.status(201).json(config);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      log(`Failed to create test case configuration: ${error}`);
+      res.status(500).json({ error: "Failed to create test case configuration" });
+    }
+  });
+
+  // Model Favorites
+  app.get("/api/model-favorites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const favorites = await storage.getModelFavorites(userId);
+      res.json(favorites);
+    } catch (error) {
+      log(`Failed to get model favorites: ${error}`);
+      res.status(500).json({ error: "Failed to get model favorites" });
+    }
+  });
+
+  app.post("/api/model-favorites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = insertModelFavoriteSchema.parse({ ...req.body, userId });
+      const favorite = await storage.createModelFavorite(parsed);
+      res.status(201).json(favorite);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      log(`Failed to create model favorite: ${error}`);
+      res.status(500).json({ error: "Failed to create model favorite" });
+    }
+  });
+
+  app.delete("/api/model-favorites/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteModelFavorite(req.params.id, userId);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Favorite not found" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to delete model favorite: ${error}`);
+      res.status(500).json({ error: "Failed to delete model favorite" });
+    }
+  });
+
+  // Tool Favorites
+  app.get("/api/tool-favorites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const favorites = await storage.getToolFavorites(userId);
+      res.json(favorites);
+    } catch (error) {
+      log(`Failed to get tool favorites: ${error}`);
+      res.status(500).json({ error: "Failed to get tool favorites" });
+    }
+  });
+
+  app.post("/api/tool-favorites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = insertToolFavoriteSchema.parse({ ...req.body, userId });
+      const favorite = await storage.createToolFavorite(parsed);
+      res.status(201).json(favorite);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      log(`Failed to create tool favorite: ${error}`);
+      res.status(500).json({ error: "Failed to create tool favorite" });
+    }
+  });
+
+  app.delete("/api/tool-favorites/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteToolFavorite(req.params.id, userId);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Favorite not found" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to delete tool favorite: ${error}`);
+      res.status(500).json({ error: "Failed to delete tool favorite" });
+    }
+  });
+
+  // Model Performance Analytics
+  app.get("/api/model-analytics", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get all prompt test results for this user
+      const tests = await storage.getPromptTests(userId);
+      const allResults = await Promise.all(
+        tests.map(test => storage.getPromptTestResults(test.id))
+      );
+      
+      // Flatten results
+      const results = allResults.flat();
+      
+      // Group by model and calculate stats
+      const modelStats = new Map<string, {
+        modelName: string;
+        provider: string;
+        totalTests: number;
+        successCount: number;
+        avgLatency: number;
+        totalCost: number;
+        avgRating: number;
+        ratingCount: number;
+      }>();
+      
+      for (const result of results) {
+        const key = `${result.provider}-${result.modelName}`;
+        const stats = modelStats.get(key) || {
+          modelName: result.modelName,
+          provider: result.provider,
+          totalTests: 0,
+          successCount: 0,
+          avgLatency: 0,
+          totalCost: 0,
+          avgRating: 0,
+          ratingCount: 0,
+        };
+        
+        stats.totalTests++;
+        if (result.status === 'success') stats.successCount++;
+        stats.avgLatency += result.latencyMs;
+        const estimatedCost = Number.parseFloat(result.estimatedCost);
+        if (!Number.isNaN(estimatedCost)) {
+          stats.totalCost += estimatedCost;
+        }
+        if (result.userRating) {
+          stats.avgRating += result.userRating;
+          stats.ratingCount++;
+        }
+        
+        modelStats.set(key, stats);
+      }
+      
+      // Calculate averages
+      const analytics = Array.from(modelStats.values()).map(stats => ({
+        ...stats,
+        avgLatency: stats.totalTests > 0 ? Math.round(stats.avgLatency / stats.totalTests) : 0,
+        successRate: stats.totalTests > 0 ? (stats.successCount / stats.totalTests) * 100 : 0,
+        avgRating: stats.ratingCount > 0 ? stats.avgRating / stats.ratingCount : 0,
+      }));
+      
+      res.json(analytics);
+    } catch (error) {
+      log(`Failed to get model analytics: ${error}`);
+      res.status(500).json({ error: "Failed to get model analytics" });
+    }
+  });
+
+  // Analytics routes (protected)
+  
+  // Get analytics stats - user can see their own, admins can see all
+  app.get("/api/analytics/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // If user is admin and no specific user requested, show global stats
+      const targetUserId = user?.role === "admin" && !req.query.userId ? undefined : userId;
+      
+      const stats = await storage.getAnalyticsStats(targetUserId);
+      res.json(stats);
+    } catch (error) {
+      log(`Failed to fetch analytics stats: ${error}`);
+      res.status(500).json({ error: "Failed to fetch analytics stats" });
+    }
+  });
+
+  // Get user activity log
+  app.get("/api/analytics/activity", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      
+      const activities = await storage.getUserActivityLog(userId, limit);
+      res.json(activities);
+    } catch (error) {
+      log(`Failed to fetch activity log: ${error}`);
+      res.status(500).json({ error: "Failed to fetch activity log" });
+    }
+  });
+
+  // Get API performance metrics
+  app.get("/api/analytics/performance", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // Only admins can see all performance metrics, regular users see their own
+      const targetUserId = user?.role === "admin" && !req.query.userId ? undefined : userId;
+      
+      const metrics = await storage.getApiMetrics({ userId: targetUserId });
+      res.json(metrics);
+    } catch (error) {
+      log(`Failed to fetch performance metrics: ${error}`);
+      res.status(500).json({ error: "Failed to fetch performance metrics" });
+    }
+  });
+
+  // Get page view statistics
+  app.get("/api/analytics/pageviews", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // Only admins can see all page views, regular users see their own
+      const targetUserId = user?.role === "admin" && !req.query.userId ? undefined : userId;
+      
+      const stats = await storage.getPageViewStats({ userId: targetUserId });
+      res.json(stats);
+    } catch (error) {
+      log(`Failed to fetch page view stats: ${error}`);
+      res.status(500).json({ error: "Failed to fetch page view stats" });
+    }
+  });
+
+  // Log page view (called from frontend)
+  app.post("/api/analytics/pageview", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { path, referrer } = req.body;
+      
+      await storage.logPageView({
+        userId,
+        path,
+        referrer: referrer || null,
+        userAgent: req.get('user-agent') || null,
+      });
+      
+      res.status(201).json({ success: true });
+    } catch (error) {
+      log(`Failed to log page view: ${error}`);
+      res.status(500).json({ error: "Failed to log page view" });
+    }
+  });
+
+  // Get current user info including role
+  app.get("/api/user/me", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      log(`Failed to fetch user info: ${error}`);
+      res.status(500).json({ error: "Failed to fetch user info" });
     }
   });
 

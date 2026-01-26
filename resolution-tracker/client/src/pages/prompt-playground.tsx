@@ -4,9 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, ThumbsUp } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Sparkles, ThumbsUp, BookOpen, Settings, BarChart3, Star } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { PromptTest, PromptTestResult } from "@shared/schema";
+import type { PromptTest, PromptTestResult, PromptTemplate } from "@shared/schema";
+import { TemplateLibraryDialog } from "@/components/template-library-dialog";
+import { ModelSelectorDialog } from "@/components/model-selector-dialog";
+import { ModelMapVisualization } from "@/components/model-map-visualization";
+import { FavoriteButton } from "@/components/favorites";
 
 interface PromptTestWithResults extends PromptTest {
   results?: PromptTestResult[];
@@ -16,6 +21,10 @@ export default function PromptPlayground() {
   const [prompt, setPrompt] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [currentTestId, setCurrentTestId] = useState<string | null>(null);
+  const [selectedModels, setSelectedModels] = useState<string[]>(["claude-sonnet-4-5", "gpt-4o", "gemini-2.0-flash"]);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("playground");
 
   const { data: tests = [] } = useQuery<PromptTestWithResults[]>({
     queryKey: ["/api/prompt-tests"],
@@ -42,8 +51,19 @@ export default function PromptPlayground() {
   });
 
   const createTestMutation = useMutation({
-    mutationFn: async (data: { prompt: string; systemPrompt?: string }) => {
-      const res = await apiRequest("POST", "/api/prompt-tests", data);
+    mutationFn: async (data: { 
+      prompt: string; 
+      systemPrompt?: string;
+      selectedModels?: string[];
+      category?: string;
+    }) => {
+      const payload = {
+        prompt: data.prompt,
+        systemPrompt: data.systemPrompt,
+        selectedModels: data.selectedModels ? JSON.stringify(data.selectedModels) : undefined,
+        category: data.category,
+      };
+      const res = await apiRequest("POST", "/api/prompt-tests", payload);
       return res.json();
     },
     onSuccess: (test: PromptTest) => {
@@ -51,6 +71,7 @@ export default function PromptPlayground() {
       setCurrentTestId(test.id);
       setPrompt("");
       setSystemPrompt("");
+      setActiveTab("playground");
     },
   });
 
@@ -72,7 +93,23 @@ export default function PromptPlayground() {
     createTestMutation.mutate({
       prompt: prompt.trim(),
       systemPrompt: systemPrompt.trim() || undefined,
+      selectedModels: selectedModels,
     });
+  };
+
+  const handleSelectTemplate = (template: PromptTemplate) => {
+    setPrompt(template.examplePrompt);
+    setSystemPrompt(template.systemPrompt || "");
+    
+    // Set suggested models if available
+    if (template.suggestedModels) {
+      try {
+        const models = JSON.parse(template.suggestedModels);
+        setSelectedModels(models);
+      } catch (e) {
+        // Keep default models if parsing fails
+      }
+    }
   };
 
   const handleRating = (resultId: string, rating: number) => {
@@ -105,37 +142,74 @@ export default function PromptPlayground() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Create New Test</CardTitle>
-          <CardDescription>
-            Enter a prompt to test across Claude, GPT, and Gemini
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">
-                System Prompt (optional)
-              </label>
-              <Textarea
-                placeholder="You are a helpful assistant..."
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-                className="min-h-[80px]"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">
-                User Prompt
-              </label>
-              <Textarea
-                placeholder="Enter your prompt here..."
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className="min-h-[120px]"
-                required
-              />
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="playground">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Playground
+          </TabsTrigger>
+          <TabsTrigger value="model-map">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Model Map
+          </TabsTrigger>
+          <TabsTrigger value="favorites">
+            <Star className="h-4 w-4 mr-2" />
+            Favorites
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="playground" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Create New Test</CardTitle>
+              <CardDescription>
+                Choose from templates or enter a custom prompt to test across AI models
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setTemplateDialogOpen(true)}
+                    className="flex-1"
+                  >
+                    <BookOpen className="h-4 w-4 mr-2" />
+                    Use Template
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setModelSelectorOpen(true)}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Models ({selectedModels.length})
+                  </Button>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    System Prompt (optional)
+                  </label>
+                  <Textarea
+                    placeholder="You are a helpful assistant..."
+                    value={systemPrompt}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    className="min-h-[80px]"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    User Prompt
+                  </label>
+                  <Textarea
+                    placeholder="Enter your prompt here..."
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    className="min-h-[120px]"
+                    required
+                  />
             </div>
             <Button
               type="submit"
@@ -178,7 +252,17 @@ export default function PromptPlayground() {
                 <Card key={result.id}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{result.modelName}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-lg">{result.modelName}</CardTitle>
+                        <FavoriteButton
+                          favoriteType="model"
+                          favoriteId={result.modelName}
+                          favoriteName={result.modelName}
+                          metadata={JSON.stringify({ provider: result.provider })}
+                          size="sm"
+                          variant="ghost"
+                        />
+                      </div>
                       <Badge className={getProviderColor(result.provider)}>
                         {result.provider}
                       </Badge>
@@ -279,6 +363,44 @@ export default function PromptPlayground() {
           </div>
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="model-map">
+          <ModelMapVisualization />
+        </TabsContent>
+
+        <TabsContent value="favorites">
+          <Card>
+            <CardHeader>
+              <CardTitle>Favorite Models</CardTitle>
+              <CardDescription>
+                Your starred models for quick access
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Model favorites will be listed here */}
+                <p className="text-sm text-muted-foreground">
+                  Click the star icon on model results to add them to your favorites.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Dialogs */}
+      <TemplateLibraryDialog
+        open={templateDialogOpen}
+        onOpenChange={setTemplateDialogOpen}
+        onSelectTemplate={handleSelectTemplate}
+      />
+      <ModelSelectorDialog
+        open={modelSelectorOpen}
+        onOpenChange={setModelSelectorOpen}
+        selectedModels={selectedModels}
+        onConfirm={setSelectedModels}
+      />
     </div>
   );
 }
