@@ -42,6 +42,7 @@ function StarRating({
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
           <button
+            title="favorite"
             key={star}
             type="button"
             className="p-0.5 transition-transform hover:scale-110"
@@ -79,6 +80,7 @@ function XFactorRating({
       <div className="flex gap-1">
         {[1, 2, 3].map((sparkle) => (
           <button
+            title="x-factor"
             key={sparkle}
             type="button"
             className="p-0.5 transition-transform hover:scale-110"

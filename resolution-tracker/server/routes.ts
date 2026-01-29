@@ -632,8 +632,54 @@ export async function registerRoutes(
   app.get("/api/model-map/user/models", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user!.id;
+      const includeStats = req.query.includeStats === "true";
       const userModels = await modelMapStorage.getUserModels(userId);
-      res.json(userModels);
+
+      if (!includeStats) {
+        return res.json(userModels);
+      }
+
+      // Calculate stats for each model from test results
+      const tests = await modelMapStorage.getModelTests(userId);
+      const userModelsWithStats = await Promise.all(
+        userModels.map(async (um) => {
+          // Get all results for this model across all tests
+          let modelResults: any[] = [];
+          for (const test of tests) {
+            const testResults = await modelMapStorage.getModelTestResults(test.id);
+            modelResults.push(...testResults.filter(r => r.modelId === um.modelId));
+          }
+
+          // Calculate stats from completed, rated results
+          const ratedResults = modelResults.filter(r =>
+            r.status === "completed" && (r.userRating !== null || r.accuracyRating !== null)
+          );
+
+          const stats = ratedResults.length > 0
+            ? {
+                testCount: ratedResults.length,
+                avgOverall: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.userRating ?? 0), 0) / ratedResults.length
+                ),
+                avgAccuracy: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.accuracyRating ?? 0), 0) / ratedResults.length * 10
+                ) / 10,
+                avgStyle: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.styleRating ?? 0), 0) / ratedResults.length * 10
+                ) / 10,
+              }
+            : {
+                testCount: 0,
+                avgOverall: 0,
+                avgAccuracy: 0,
+                avgStyle: 0,
+              };
+
+          return { ...um, stats };
+        })
+      );
+
+      res.json(userModelsWithStats);
     } catch (error) {
       log(`Failed to fetch user models: ${error}`);
       res.status(500).json({ error: "Failed to fetch user models" });
@@ -670,8 +716,54 @@ export async function registerRoutes(
   app.get("/api/model-map/user/tools", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user!.id;
+      const includeStats = req.query.includeStats === "true";
       const userTools = await modelMapStorage.getUserTools(userId);
-      res.json(userTools);
+
+      if (!includeStats) {
+        return res.json(userTools);
+      }
+
+      // Calculate stats for each tool from test results
+      const tests = await modelMapStorage.getModelTests(userId);
+      const userToolsWithStats = await Promise.all(
+        userTools.map(async (ut) => {
+          // Get all results for this tool across all tests
+          let toolResults: any[] = [];
+          for (const test of tests) {
+            const testResults = await modelMapStorage.getModelTestResults(test.id);
+            toolResults.push(...testResults.filter(r => r.toolId === ut.toolId));
+          }
+
+          // Calculate stats from completed, rated results
+          const ratedResults = toolResults.filter(r =>
+            r.status === "completed" && (r.userRating !== null || r.accuracyRating !== null)
+          );
+
+          const stats = ratedResults.length > 0
+            ? {
+                testCount: ratedResults.length,
+                avgOverall: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.userRating ?? 0), 0) / ratedResults.length
+                ),
+                avgAccuracy: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.accuracyRating ?? 0), 0) / ratedResults.length * 10
+                ) / 10,
+                avgStyle: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.styleRating ?? 0), 0) / ratedResults.length * 10
+                ) / 10,
+              }
+            : {
+                testCount: 0,
+                avgOverall: 0,
+                avgAccuracy: 0,
+                avgStyle: 0,
+              };
+
+          return { ...ut, stats };
+        })
+      );
+
+      res.json(userToolsWithStats);
     } catch (error) {
       log(`Failed to fetch user tools: ${error}`);
       res.status(500).json({ error: "Failed to fetch user tools" });
@@ -943,6 +1035,7 @@ export async function registerRoutes(
 
   app.patch("/api/model-map/tests/:testId/results/:resultId", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user!.id;
       const { userRating, userNotes, accuracyRating, styleRating, speedRating, xFactor, status } = req.body;
       const result = await modelMapStorage.updateModelTestResult(req.params.resultId, {
         userRating,
@@ -956,6 +1049,46 @@ export async function registerRoutes(
       if (!result) {
         return res.status(404).json({ error: "Model test result not found" });
       }
+
+      // Get the test and check if all results are completed
+      const test = await modelMapStorage.getModelTestById(result.testId);
+      if (test) {
+        const allResults = await modelMapStorage.getModelTestResults(test.id);
+        const allCompleted = allResults.every(r => r.status === "completed" || r.userRating);
+
+        // Update test status to completed if all results are done
+        if (allCompleted && test.status === "pending") {
+          await modelMapStorage.updateModelTest(test.id, { status: "completed" });
+        }
+
+        // Generate/update recommendations if test has rated results
+        if (allCompleted && test.useCaseId) {
+          const ratedResults = allResults.filter(r => r.userRating);
+          if (ratedResults.length > 0) {
+            const useCase = await modelMapStorage.getUseCase(test.useCaseId);
+            if (useCase) {
+              const avgRating = Math.round(
+                ratedResults.reduce((sum, r) => sum + (r.userRating || 0), 0) / ratedResults.length
+              );
+
+              // Find best model/tool from results
+              const bestResult = ratedResults.reduce((best, r) =>
+                (r.userRating || 0) > (best.userRating || 0) ? r : best
+              );
+
+              if (bestResult.modelId) {
+                await modelMapStorage.updateRecommendation(
+                  userId,
+                  useCase.category,
+                  bestResult.modelId,
+                  avgRating
+                );
+              }
+            }
+          }
+        }
+      }
+
       res.json(result);
     } catch (error) {
       log(`Failed to update model test result: ${error}`);
@@ -966,6 +1099,7 @@ export async function registerRoutes(
   // Direct test result update endpoint (alternative path)
   app.patch("/api/model-map/test-results/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user!.id;
       const { userRating, userNotes, accuracyRating, styleRating, speedRating, xFactor, status } = req.body;
       const result = await modelMapStorage.updateModelTestResult(req.params.id, {
         userRating,
@@ -979,6 +1113,46 @@ export async function registerRoutes(
       if (!result) {
         return res.status(404).json({ error: "Model test result not found" });
       }
+
+      // Get the test and check if all results are completed
+      const test = await modelMapStorage.getModelTestById(result.testId);
+      if (test) {
+        const allResults = await modelMapStorage.getModelTestResults(test.id);
+        const allCompleted = allResults.every(r => r.status === "completed" || r.userRating);
+
+        // Update test status to completed if all results are done
+        if (allCompleted && test.status === "pending") {
+          await modelMapStorage.updateModelTest(test.id, { status: "completed" });
+        }
+
+        // Generate/update recommendations if test has rated results
+        if (allCompleted && test.useCaseId) {
+          const ratedResults = allResults.filter(r => r.userRating);
+          if (ratedResults.length > 0) {
+            const useCase = await modelMapStorage.getUseCase(test.useCaseId);
+            if (useCase) {
+              const avgRating = Math.round(
+                ratedResults.reduce((sum, r) => sum + (r.userRating || 0), 0) / ratedResults.length
+              );
+
+              // Find best model/tool from results
+              const bestResult = ratedResults.reduce((best, r) =>
+                (r.userRating || 0) > (best.userRating || 0) ? r : best
+              );
+
+              if (bestResult.modelId) {
+                await modelMapStorage.updateRecommendation(
+                  userId,
+                  useCase.category,
+                  bestResult.modelId,
+                  avgRating
+                );
+              }
+            }
+          }
+        }
+      }
+
       res.json(result);
     } catch (error) {
       log(`Failed to update model test result: ${error}`);

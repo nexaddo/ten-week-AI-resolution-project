@@ -4,6 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Beaker, Brain, FileText, Code, Sparkles, LineChart, Zap, BookOpen, Star, Play } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
@@ -31,9 +40,9 @@ const categoryColors: Record<string, string> = {
   "Other": "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
 };
 
-function UseCaseCard({ useCase }: { useCase: UseCase }) {
+function UseCaseCard({ useCase, onCustomize }: { useCase: UseCase; onCustomize: (useCase: UseCase) => void }) {
   const CategoryIcon = CATEGORIES.find(c => c.value === useCase.category)?.icon || Sparkles;
-  
+
   return (
     <Card className="hover:border-primary/50 transition-colors group cursor-pointer">
       <CardHeader className="pb-3">
@@ -68,7 +77,12 @@ function UseCaseCard({ useCase }: { useCase: UseCase }) {
               Test
             </Button>
           </Link>
-          <Button size="sm" variant="outline" className="gap-1">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            onClick={() => onCustomize(useCase)}
+          >
             <Beaker className="h-3 w-3" />
             Customize
           </Button>
@@ -81,6 +95,9 @@ function UseCaseCard({ useCase }: { useCase: UseCase }) {
 export default function UseCasesPage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [customizingUseCase, setCustomizingUseCase] = useState<UseCase | null>(null);
+  const [customTitle, setCustomTitle] = useState("");
+  const [customDescription, setCustomDescription] = useState("");
 
   const { data: useCases = [], isLoading } = useQuery<UseCase[]>({
     queryKey: ["/api/model-map/use-cases", selectedCategory === "all" ? undefined : selectedCategory],
@@ -165,7 +182,15 @@ export default function UseCasesPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {curatedUseCases.map((useCase) => (
-                  <UseCaseCard key={useCase.id} useCase={useCase} />
+                  <UseCaseCard
+                    key={useCase.id}
+                    useCase={useCase}
+                    onCustomize={(uc) => {
+                      setCustomizingUseCase(uc);
+                      setCustomTitle(uc.title);
+                      setCustomDescription(uc.description);
+                    }}
+                  />
                 ))}
               </div>
             </section>
@@ -181,7 +206,15 @@ export default function UseCasesPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {communityUseCases.map((useCase) => (
-                  <UseCaseCard key={useCase.id} useCase={useCase} />
+                  <UseCaseCard
+                    key={useCase.id}
+                    useCase={useCase}
+                    onCustomize={(uc) => {
+                      setCustomizingUseCase(uc);
+                      setCustomTitle(uc.title);
+                      setCustomDescription(uc.description);
+                    }}
+                  />
                 ))}
               </div>
             </section>
@@ -203,6 +236,54 @@ export default function UseCasesPage() {
           )}
         </div>
       )}
+
+      {/* Customize Use Case Dialog */}
+      <Dialog open={!!customizingUseCase} onOpenChange={(open) => !open && setCustomizingUseCase(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Customize Use Case</DialogTitle>
+          </DialogHeader>
+          {customizingUseCase && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="custom-title">Title</Label>
+                <Input
+                  id="custom-title"
+                  value={customTitle}
+                  onChange={(e) => setCustomTitle(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="custom-description">Description</Label>
+                <Textarea
+                  id="custom-description"
+                  value={customDescription}
+                  onChange={(e) => setCustomDescription(e.target.value)}
+                  rows={4}
+                  className="mt-1"
+                />
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <p className="mb-2"><strong>Category:</strong> {customizingUseCase.category}</p>
+                <p><strong>Original Description:</strong></p>
+                <p className="italic">{customizingUseCase.description}</p>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  variant="outline"
+                  onClick={() => setCustomizingUseCase(null)}
+                >
+                  Close
+                </Button>
+                <Link href={`/model-map/test-lab?useCase=${customizingUseCase.id}`}>
+                  <Button>Use This</Button>
+                </Link>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

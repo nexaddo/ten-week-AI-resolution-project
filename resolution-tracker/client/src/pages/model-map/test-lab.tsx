@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,24 +19,49 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Beaker, Plus, ChevronDown, Trash2 } from "lucide-react";
+import { Beaker, Plus, ChevronDown, Trash2, Search } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ModelAvatar } from "@/components/model-avatar";
 import { CreateTestDialog } from "@/components/create-test-dialog";
 import { CompleteTestDialog } from "@/components/complete-test-dialog";
-import type { AiModel, AiTool, ModelTest, ModelTestResult } from "@shared/schema";
+import type { AiModel, AiTool, ModelTest, ModelTestResult, UseCase } from "@shared/schema";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Extended types for populated data
 type PopulatedTestResult = ModelTestResult & { model?: AiModel; tool?: AiTool };
 type PopulatedTest = ModelTest & { results?: PopulatedTestResult[]; useCase?: { category: string } };
 
 export default function TestLabPage() {
+  const [location] = useLocation();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<PopulatedTest | null>(null);
   const [selectedResult, setSelectedResult] = useState<PopulatedTestResult | null>(null);
   const [deleteTestId, setDeleteTestId] = useState<string | null>(null);
   const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
+  const [selectedUseCaseId, setSelectedUseCaseId] = useState<string | null>(null);
+  const [addingModelsToTest, setAddingModelsToTest] = useState<PopulatedTest | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedModelsToAdd, setSelectedModelsToAdd] = useState<string[]>([]);
+  const [selectedToolsToAdd, setSelectedToolsToAdd] = useState<string[]>([]);
+
+  // Extract useCase from query parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const useCaseId = params.get("useCase");
+    if (useCaseId) {
+      setSelectedUseCaseId(useCaseId);
+      setCreateDialogOpen(true);
+    }
+  }, []);
 
   // Fetch tests with results
   const { data: tests = [], isLoading } = useQuery<PopulatedTest[]>({
@@ -54,6 +80,54 @@ export default function TestLabPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/model-map/tests"] });
       setDeleteTestId(null);
+    },
+  });
+
+  // Fetch all available models
+  const { data: allModels = [] } = useQuery<AiModel[]>({
+    queryKey: ["/api/model-map/models"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/model-map/models");
+      return res.json();
+    },
+  });
+
+  // Fetch all available tools
+  const { data: allTools = [] } = useQuery<AiTool[]>({
+    queryKey: ["/api/model-map/tools"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/model-map/tools");
+      return res.json();
+    },
+  });
+
+  // Add models to existing test mutation
+  const addModelsToTestMutation = useMutation({
+    mutationFn: async (data: { testId: string; modelIds: string[]; toolIds: string[] }) => {
+      const { testId, modelIds, toolIds } = data;
+
+      // Create test results for each new model
+      for (const modelId of modelIds) {
+        await apiRequest("POST", `/api/model-map/tests/${testId}/results`, {
+          modelId,
+          status: "pending",
+        });
+      }
+
+      // Create test results for each new tool
+      for (const toolId of toolIds) {
+        await apiRequest("POST", `/api/model-map/tests/${testId}/results`, {
+          toolId,
+          status: "pending",
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/model-map/tests"] });
+      setAddingModelsToTest(null);
+      setSelectedModelsToAdd([]);
+      setSelectedToolsToAdd([]);
+      setSearchQuery("");
     },
   });
 
@@ -162,7 +236,11 @@ export default function TestLabPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {getStatusBadge(test)}
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setAddingModelsToTest(test)}
+                    >
                       <Plus className="h-4 w-4 mr-1" />
                       Test More Models
                     </Button>
@@ -267,6 +345,8 @@ export default function TestLabPage() {
       <CreateTestDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+        selectedUseCaseId={selectedUseCaseId}
+        onSelectUseCaseChange={setSelectedUseCaseId}
       />
 
       {/* Complete Test Dialog */}
@@ -279,6 +359,137 @@ export default function TestLabPage() {
           queryClient.invalidateQueries({ queryKey: ["/api/model-map/tests"] });
         }}
       />
+
+      {/* Add Models to Test Dialog */}
+      <Dialog open={!!addingModelsToTest} onOpenChange={(open) => {
+        if (!open) {
+          setAddingModelsToTest(null);
+          setSelectedModelsToAdd([]);
+          setSelectedToolsToAdd([]);
+          setSearchQuery("");
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Add More Models to Test</DialogTitle>
+          </DialogHeader>
+
+          {addingModelsToTest && (
+            <div className="flex-1 overflow-y-auto space-y-4 py-4">
+              {/* Test Info */}
+              <div className="p-3 rounded-lg bg-muted/50">
+                <p className="font-medium text-sm">{addingModelsToTest.title}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {addingModelsToTest.useCaseId ? "Linked to a use case" : "Custom test"}
+                </p>
+              </div>
+
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search models or tools..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* Models Section */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Models</p>
+                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                  {allModels
+                    .filter(m => !addingModelsToTest.results?.some(r => r.modelId === m.id))
+                    .filter(m => !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map((model) => (
+                      <div key={model.id} className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded">
+                        <Checkbox
+                          checked={selectedModelsToAdd.includes(model.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedModelsToAdd([...selectedModelsToAdd, model.id]);
+                            } else {
+                              setSelectedModelsToAdd(selectedModelsToAdd.filter(id => id !== model.id));
+                            }
+                          }}
+                        />
+                        <ModelAvatar
+                          name={model.name}
+                          shortName={model.shortName}
+                          provider={model.provider}
+                          size="sm"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{model.name}</p>
+                          <p className="text-xs text-muted-foreground">{model.provider}</p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Tools Section */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Tools</p>
+                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                  {allTools
+                    .filter(t => !addingModelsToTest.results?.some(r => r.toolId === t.id))
+                    .filter(t => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map((tool) => (
+                      <div key={tool.id} className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded">
+                        <Checkbox
+                          checked={selectedToolsToAdd.includes(tool.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedToolsToAdd([...selectedToolsToAdd, tool.id]);
+                            } else {
+                              setSelectedToolsToAdd(selectedToolsToAdd.filter(id => id !== tool.id));
+                            }
+                          }}
+                        />
+                        <ModelAvatar
+                          name={tool.name}
+                          shortName={tool.shortName}
+                          provider={tool.provider}
+                          size="sm"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{tool.name}</p>
+                          <p className="text-xs text-muted-foreground">{tool.provider}</p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddingModelsToTest(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (addingModelsToTest && (selectedModelsToAdd.length > 0 || selectedToolsToAdd.length > 0)) {
+                  addModelsToTestMutation.mutate({
+                    testId: addingModelsToTest.id,
+                    modelIds: selectedModelsToAdd,
+                    toolIds: selectedToolsToAdd,
+                  });
+                  setSelectedModelsToAdd([]);
+                  setSelectedToolsToAdd([]);
+                  setSearchQuery("");
+                }
+              }}
+              disabled={selectedModelsToAdd.length === 0 && selectedToolsToAdd.length === 0}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Selected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteTestId} onOpenChange={() => setDeleteTestId(null)}>

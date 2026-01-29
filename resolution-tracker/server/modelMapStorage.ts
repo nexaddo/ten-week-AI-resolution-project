@@ -58,6 +58,7 @@ export interface IModelMapStorage {
   // Model Tests
   getModelTests(userId: string): Promise<ModelTest[]>;
   getModelTest(id: string, userId: string): Promise<ModelTest | undefined>;
+  getModelTestById(id: string): Promise<ModelTest | undefined>;
   createModelTest(test: InsertModelTest & { userId: string }): Promise<ModelTest>;
   updateModelTest(id: string, updates: { status?: string }): Promise<ModelTest | undefined>;
   deleteModelTest(id: string, userId: string): Promise<boolean>;
@@ -598,6 +599,10 @@ Output format:
     const test = this.modelTests.get(id);
     if (test && test.userId === userId) return test;
     return undefined;
+  }
+
+  async getModelTestById(id: string): Promise<ModelTest | undefined> {
+    return this.modelTests.get(id);
   }
 
   async createModelTest(test: InsertModelTest & { userId: string }): Promise<ModelTest> {

@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -28,16 +29,25 @@ interface CreateTestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onTestCreated?: (testId: string) => void;
+  selectedUseCaseId?: string | null;
+  onSelectUseCaseChange?: (useCaseId: string | null) => void;
 }
 
-export function CreateTestDialog({ open, onOpenChange, onTestCreated }: CreateTestDialogProps) {
-  const [selectedUseCaseId, setSelectedUseCaseId] = useState<string>("");
+export function CreateTestDialog({ open, onOpenChange, onTestCreated, selectedUseCaseId: initialUseCaseId, onSelectUseCaseChange }: CreateTestDialogProps) {
+  const [selectedUseCaseId, setSelectedUseCaseId] = useState<string>(initialUseCaseId || "");
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("models");
   const [showNewUseCase, setShowNewUseCase] = useState(false);
   const [newUseCaseTitle, setNewUseCaseTitle] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [userPrompt, setUserPrompt] = useState("");
+
+  // Update parent when useCase selection changes
+  useEffect(() => {
+    onSelectUseCaseChange?.(selectedUseCaseId || null);
+  }, [selectedUseCaseId, onSelectUseCaseChange]);
 
   // Fetch use cases
   const { data: useCases = [] } = useQuery<UseCase[]>({
@@ -86,9 +96,29 @@ export function CreateTestDialog({ open, onOpenChange, onTestCreated }: CreateTe
 
   // Create test mutation
   const createTestMutation = useMutation({
-    mutationFn: async (data: { useCaseId?: string; title: string; modelIds: string[]; toolIds: string[] }) => {
-      const res = await apiRequest("POST", "/api/model-map/tests", data);
-      return res.json();
+    mutationFn: async (data: { useCaseId?: string; title: string; prompt: string; systemPrompt?: string; modelIds: string[]; toolIds: string[] }) => {
+      const { modelIds, toolIds, ...testData } = data;
+      // Create the test
+      const res = await apiRequest("POST", "/api/model-map/tests", testData);
+      const test = await res.json();
+
+      // Create test results for each model
+      for (const modelId of modelIds) {
+        await apiRequest("POST", `/api/model-map/tests/${test.id}/results`, {
+          modelId,
+          status: "pending",
+        });
+      }
+
+      // Create test results for each tool
+      for (const toolId of toolIds) {
+        await apiRequest("POST", `/api/model-map/tests/${test.id}/results`, {
+          toolId,
+          status: "pending",
+        });
+      }
+
+      return test;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/model-map/tests"] });
@@ -105,14 +135,27 @@ export function CreateTestDialog({ open, onOpenChange, onTestCreated }: CreateTe
     setSearchQuery("");
     setShowNewUseCase(false);
     setNewUseCaseTitle("");
+    setSystemPrompt("");
+    setUserPrompt("");
   };
 
-  // Reset form when dialog opens
+  // Reset form when dialog opens, but keep the initial useCase if provided
   useEffect(() => {
     if (open) {
-      resetForm();
+      if (initialUseCaseId) {
+        setSelectedUseCaseId(initialUseCaseId);
+        setSelectedModels([]);
+        setSelectedTools([]);
+        setSearchQuery("");
+        setShowNewUseCase(false);
+        setNewUseCaseTitle("");
+        setSystemPrompt("");
+        setUserPrompt("");
+      } else {
+        resetForm();
+      }
     }
-  }, [open]);
+  }, [open, initialUseCaseId]);
 
   const userModelIds = new Set(userModels.map((um) => um.modelId));
   const userToolIds = new Set(userTools.map((ut) => ut.toolId));
@@ -178,13 +221,16 @@ export function CreateTestDialog({ open, onOpenChange, onTestCreated }: CreateTe
     createTestMutation.mutate({
       useCaseId: selectedUseCaseId || undefined,
       title,
+      prompt: userPrompt,
+      systemPrompt: systemPrompt || undefined,
       modelIds: selectedModels,
       toolIds: selectedTools,
     });
   };
 
   const canCreate = (selectedModels.length > 0 || selectedTools.length > 0) &&
-    (selectedUseCaseId || newUseCaseTitle);
+    (selectedUseCaseId || newUseCaseTitle) &&
+    userPrompt.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -236,6 +282,28 @@ export function CreateTestDialog({ open, onOpenChange, onTestCreated }: CreateTe
                 </SelectContent>
               </Select>
             )}
+          </div>
+
+          {/* Prompt Input */}
+          <div className="space-y-2">
+            <Label>System Prompt (Optional)</Label>
+            <Textarea
+              placeholder="Set the context and behavior for the models..."
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="user-prompt">User Prompt</Label>
+            <Textarea
+              id="user-prompt"
+              placeholder="Enter your prompt to test across models..."
+              value={userPrompt}
+              onChange={(e) => setUserPrompt(e.target.value)}
+              rows={4}
+            />
           </div>
 
           {/* Model/Tool Selection */}

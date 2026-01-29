@@ -70,12 +70,22 @@ export default function MyMapPage() {
   const completedTests = tests.length;
   const progressPercent = totalUseCases > 0 ? Math.min((completedTests / totalUseCases) * 100, 100) : 0;
 
+  // Track which use cases have been tested
+  const testedUseCaseIds = new Set(
+    tests
+      .filter(t => t.useCaseId)
+      .map(t => t.useCaseId)
+  );
+
   // Get category breakdown
   const categoryBreakdown = curatedUseCases.reduce<Record<string, { total: number; tested: number }>>((acc, uc) => {
     if (!acc[uc.category]) {
       acc[uc.category] = { total: 0, tested: 0 };
     }
     acc[uc.category].total++;
+    if (testedUseCaseIds.has(uc.id)) {
+      acc[uc.category].tested++;
+    }
     return acc;
   }, {});
 

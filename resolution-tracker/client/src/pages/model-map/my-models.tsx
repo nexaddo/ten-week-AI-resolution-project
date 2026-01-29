@@ -2,6 +2,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Plus, Star, ArrowRight, Cpu } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ModelAvatar } from "@/components/model-avatar";
@@ -133,6 +139,8 @@ function ModelCard({
 
 export default function MyModelsPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<UserModelWithStats | null>(null);
+  const [selectedTool, setSelectedTool] = useState<UserToolWithStats | null>(null);
 
   // Fetch user's models with stats
   const { data: userModels = [] } = useQuery<UserModelWithStats[]>({
@@ -200,6 +208,7 @@ export default function MyModelsPage() {
               avgOverall={um.stats?.avgOverall || 0}
               avgAccuracy={um.stats?.avgAccuracy || 0}
               avgStyle={um.stats?.avgStyle || 0}
+              onClick={() => setSelectedModel(um)}
             />
           ))}
         </div>
@@ -220,6 +229,7 @@ export default function MyModelsPage() {
                 avgOverall={ut.stats?.avgOverall || 0}
                 avgAccuracy={ut.stats?.avgAccuracy || 0}
                 avgStyle={ut.stats?.avgStyle || 0}
+                onClick={() => setSelectedTool(ut)}
               />
             ))}
           </div>
@@ -231,6 +241,143 @@ export default function MyModelsPage() {
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
       />
+
+      {/* Model Detail Dialog */}
+      <Dialog open={!!selectedModel} onOpenChange={(open) => !open && setSelectedModel(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Model Details</DialogTitle>
+          </DialogHeader>
+          {selectedModel && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <ModelAvatar
+                  name={selectedModel.model.name}
+                  shortName={selectedModel.model.shortName}
+                  provider={selectedModel.model.provider}
+                  size="lg"
+                />
+                <div>
+                  <h3 className="font-semibold text-lg">{selectedModel.model.name}</h3>
+                  <p className="text-sm text-muted-foreground">{selectedModel.model.provider}</p>
+                </div>
+              </div>
+
+              {selectedModel.model.description && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    Description
+                  </p>
+                  <p className="text-sm">{selectedModel.model.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Overall Rating</p>
+                  <p className="text-lg font-semibold">{selectedModel.stats?.avgOverall.toFixed(1) || "0"}/5</p>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Test Count</p>
+                  <p className="text-lg font-semibold">{selectedModel.stats?.testCount || 0}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Accuracy</p>
+                  <p className="font-semibold">{selectedModel.stats?.avgAccuracy.toFixed(1) || "0"}</p>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Style</p>
+                  <p className="font-semibold">{selectedModel.stats?.avgStyle.toFixed(1) || "0"}</p>
+                </div>
+              </div>
+
+              {selectedModel.model.capabilities && selectedModel.model.capabilities.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    Capabilities
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedModel.model.capabilities.map((cap) => (
+                      <span key={cap} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                        {cap}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Tool Detail Dialog */}
+      <Dialog open={!!selectedTool} onOpenChange={(open) => !open && setSelectedTool(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tool Details</DialogTitle>
+          </DialogHeader>
+          {selectedTool && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <ModelAvatar
+                  name={selectedTool.tool.name}
+                  shortName={selectedTool.tool.shortName}
+                  provider={selectedTool.tool.provider}
+                  size="lg"
+                />
+                <div>
+                  <h3 className="font-semibold text-lg">{selectedTool.tool.name}</h3>
+                  <p className="text-sm text-muted-foreground">{selectedTool.tool.provider}</p>
+                </div>
+              </div>
+
+              {selectedTool.tool.description && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    Description
+                  </p>
+                  <p className="text-sm">{selectedTool.tool.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Overall Rating</p>
+                  <p className="text-lg font-semibold">{selectedTool.stats?.avgOverall.toFixed(1) || "0"}/5</p>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Test Count</p>
+                  <p className="text-lg font-semibold">{selectedTool.stats?.testCount || 0}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Accuracy</p>
+                  <p className="font-semibold">{selectedTool.stats?.avgAccuracy.toFixed(1) || "0"}</p>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Style</p>
+                  <p className="font-semibold">{selectedTool.stats?.avgStyle.toFixed(1) || "0"}</p>
+                </div>
+              </div>
+
+              {selectedTool.tool.url && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => window.open(selectedTool.tool.url, "_blank")}
+                >
+                  Visit Tool Website
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
