@@ -5,10 +5,58 @@ import { z } from "zod";
 
 // Import users table first
 import { users, sessions, userRoles, type UserRole } from "./models/auth";
+import { useCaseCategories } from "./models/modelMap";
 
 // Re-export auth models
 export { users, sessions, userRoles };
 export type { User, UpsertUser, UserRole } from "./models/auth";
+
+// Import and re-export model map types
+export {
+  aiModels,
+  aiTools,
+  userModels,
+  userTools,
+  useCases,
+  userUseCases,
+  modelTests,
+  modelTestResults,
+  modelRecommendations,
+  useCaseCategories,
+  speedRatings,
+  insertAiModelSchema,
+  insertAiToolSchema,
+  insertUserModelSchema,
+  insertUserToolSchema,
+  insertUseCaseSchema,
+  insertUserUseCaseSchema,
+  insertModelTestSchema,
+  insertModelTestResultSchema,
+  insertModelRecommendationSchema,
+} from "./models/modelMap";
+
+export type {
+  AiModel,
+  InsertAiModel,
+  AiTool,
+  InsertAiTool,
+  UserModel,
+  InsertUserModel,
+  UserTool,
+  InsertUserTool,
+  UseCase,
+  InsertUseCase,
+  UseCaseCategory,
+  UserUseCase,
+  InsertUserUseCase,
+  ModelTest,
+  InsertModelTest,
+  ModelTestResult,
+  InsertModelTestResult,
+  ModelRecommendation,
+  InsertModelRecommendation,
+  SpeedRating,
+} from "./models/modelMap";
 
 // Categories for resolutions
 export const categories = [
@@ -132,20 +180,6 @@ export const insertAiModelUsageSchema = createInsertSchema(aiModelUsage).omit({
 
 export type InsertAiModelUsage = z.infer<typeof insertAiModelUsageSchema>;
 export type AiModelUsage = typeof aiModelUsage.$inferSelect;
-
-// Prompt Templates - library of pre-defined use cases
-export const useCaseCategories = [
-  "writing",
-  "research",
-  "coding",
-  "analysis",
-  "creative",
-  "education",
-  "business",
-  "general",
-] as const;
-
-export type UseCaseCategory = (typeof useCaseCategories)[number];
 
 export const promptTemplates = pgTable("prompt_templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

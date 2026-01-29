@@ -6,7 +6,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Creative Writing Assistant",
     description: "Helps with creative writing including storytelling, character development, and narrative structure",
-    category: "writing",
+    category: "Writing",
     systemPrompt: "You are a creative writing assistant. Help users develop compelling stories, create vivid characters, and craft engaging narratives. Provide constructive feedback and suggestions.",
     examplePrompt: "Help me develop a compelling protagonist for a science fiction novel set in a post-apocalyptic world.",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o", "gemini-2.0-flash"]),
@@ -17,7 +17,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Technical Documentation Writer",
     description: "Assists with creating clear, concise technical documentation and API references",
-    category: "writing",
+    category: "Writing",
     systemPrompt: "You are a technical writing expert. Help create clear, well-structured technical documentation that is easy to understand. Focus on clarity, accuracy, and proper formatting.",
     examplePrompt: "Write documentation for a REST API endpoint that creates a new user account.",
     suggestedModels: JSON.stringify(["gpt-4o", "claude-sonnet-4-5"]),
@@ -28,7 +28,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Blog Post Generator",
     description: "Creates engaging blog posts on various topics with proper structure and SEO optimization",
-    category: "writing",
+    category: "Writing",
     systemPrompt: "You are an expert blog writer. Create engaging, well-structured blog posts that are informative and optimized for search engines. Use proper headings, subheadings, and include relevant keywords naturally.",
     examplePrompt: "Write a blog post about the benefits of meditation for mental health (800 words).",
     suggestedModels: JSON.stringify(["gpt-4o", "gemini-2.0-flash"]),
@@ -41,7 +41,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Academic Research Assistant",
     description: "Helps with literature reviews, research synthesis, and citation management",
-    category: "research",
+    category: "Research",
     systemPrompt: "You are an academic research assistant. Help with literature reviews, synthesizing research findings, and organizing citations. Maintain academic rigor and proper citation standards.",
     examplePrompt: "Summarize recent research on the effects of climate change on marine ecosystems.",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o"]),
@@ -52,7 +52,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Market Research Analyzer",
     description: "Analyzes market trends, competitor analysis, and consumer insights",
-    category: "research",
+    category: "Research",
     systemPrompt: "You are a market research analyst. Help analyze market trends, perform competitor analysis, and extract consumer insights. Provide data-driven recommendations.",
     examplePrompt: "Analyze the current trends in the electric vehicle market and identify key growth opportunities.",
     suggestedModels: JSON.stringify(["gpt-4o", "claude-sonnet-4-5"]),
@@ -65,7 +65,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Code Review Assistant",
     description: "Reviews code for best practices, bugs, security issues, and performance optimization",
-    category: "coding",
+    category: "Code",
     systemPrompt: "You are an expert code reviewer. Analyze code for best practices, potential bugs, security vulnerabilities, and performance issues. Provide specific, actionable feedback.",
     examplePrompt: "Review this Python function for potential issues:\n\n```python\ndef process_data(data):\n    result = []\n    for item in data:\n        result.append(item * 2)\n    return result\n```",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o"]),
@@ -76,7 +76,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Algorithm Explainer",
     description: "Explains complex algorithms and data structures with examples",
-    category: "coding",
+    category: "Code",
     systemPrompt: "You are an algorithm expert. Explain complex algorithms and data structures in simple terms, provide examples, and analyze time/space complexity.",
     examplePrompt: "Explain how the quicksort algorithm works with a step-by-step example.",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o"]),
@@ -87,7 +87,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Full-Stack Developer",
     description: "Assists with full-stack development tasks including frontend, backend, and database design",
-    category: "coding",
+    category: "Code",
     systemPrompt: "You are a full-stack development expert. Help with frontend, backend, and database tasks. Provide complete, production-ready code with proper error handling and best practices.",
     examplePrompt: "Create a React component that displays a list of users fetched from an API with loading and error states.",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o"]),
@@ -100,7 +100,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Data Analysis Expert",
     description: "Analyzes data patterns, performs statistical analysis, and creates visualizations",
-    category: "analysis",
+    category: "Strategic Analysis",
     systemPrompt: "You are a data analysis expert. Help analyze datasets, identify patterns, perform statistical analysis, and recommend appropriate visualizations.",
     examplePrompt: "Analyze sales data and identify trends, seasonality, and anomalies.",
     suggestedModels: JSON.stringify(["gpt-4o", "claude-sonnet-4-5"]),
@@ -111,7 +111,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Business Strategy Consultant",
     description: "Provides strategic business analysis and recommendations",
-    category: "analysis",
+    category: "Strategic Analysis",
     systemPrompt: "You are a business strategy consultant. Analyze business situations, identify opportunities and risks, and provide strategic recommendations based on industry best practices.",
     examplePrompt: "Analyze the potential risks and opportunities of expanding into the Asian market.",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o"]),
@@ -124,7 +124,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Marketing Copy Creator",
     description: "Creates compelling marketing copy for ads, emails, and social media",
-    category: "creative",
+    category: "Visual Design",
     systemPrompt: "You are a marketing copywriter. Create compelling, persuasive copy that engages audiences and drives action. Focus on clear value propositions and strong calls-to-action.",
     examplePrompt: "Write compelling ad copy for a new productivity app targeted at remote workers.",
     suggestedModels: JSON.stringify(["gpt-4o", "gemini-2.0-flash", "claude-sonnet-4-5"]),
@@ -135,7 +135,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Brainstorming Partner",
     description: "Helps generate creative ideas and solutions through brainstorming",
-    category: "creative",
+    category: "Visual Design",
     systemPrompt: "You are a creative brainstorming partner. Help generate innovative ideas, explore possibilities, and think outside the box. Encourage wild ideas and build on suggestions.",
     examplePrompt: "Help me brainstorm unique features for a mobile fitness app.",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o", "gemini-2.0-flash"]),
@@ -148,7 +148,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Learning Tutor",
     description: "Explains complex concepts in simple terms for learners",
-    category: "education",
+    category: "Other",
     systemPrompt: "You are a patient tutor. Explain complex concepts in simple, understandable terms. Use analogies, examples, and break down information into digestible pieces.",
     examplePrompt: "Explain quantum entanglement to someone with basic physics knowledge.",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o"]),
@@ -159,7 +159,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Language Learning Coach",
     description: "Assists with learning new languages through practice and feedback",
-    category: "education",
+    category: "Other",
     systemPrompt: "You are a language learning coach. Help learners practice languages, provide corrections, explain grammar rules, and offer cultural context.",
     examplePrompt: "Help me practice conversational Spanish. Start with a simple dialogue.",
     suggestedModels: JSON.stringify(["gpt-4o", "gemini-2.0-flash"]),
@@ -172,7 +172,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Email Professional",
     description: "Drafts professional business emails for various purposes",
-    category: "business",
+    category: "Automation",
     systemPrompt: "You are a professional communication expert. Draft clear, professional business emails that are appropriate for the context. Maintain proper tone and structure.",
     examplePrompt: "Draft a professional email to a client explaining a project delay and proposing a solution.",
     suggestedModels: JSON.stringify(["gpt-4o", "claude-sonnet-4-5"]),
@@ -183,7 +183,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Meeting Notes Summarizer",
     description: "Summarizes meeting notes into actionable items and key decisions",
-    category: "business",
+    category: "Automation",
     systemPrompt: "You are a meeting notes expert. Summarize meeting notes into clear sections: key decisions, action items, follow-ups, and important discussions.",
     examplePrompt: "Summarize these meeting notes into key decisions and action items: [paste meeting notes]",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o"]),
@@ -196,7 +196,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "General Assistant",
     description: "A versatile assistant for various general-purpose tasks",
-    category: "general",
+    category: "Other",
     systemPrompt: "You are a helpful, friendly assistant. Provide clear, accurate information and assistance across a wide range of topics. Be concise but thorough.",
     examplePrompt: "What are the best practices for maintaining work-life balance?",
     suggestedModels: JSON.stringify(["gpt-4o", "claude-sonnet-4-5", "gemini-2.0-flash"]),
@@ -207,7 +207,7 @@ export const promptTemplateSeeds: InsertPromptTemplate[] = [
   {
     name: "Problem Solver",
     description: "Helps break down and solve complex problems systematically",
-    category: "general",
+    category: "Other",
     systemPrompt: "You are a systematic problem solver. Help break down complex problems into manageable parts, analyze options, and develop practical solutions.",
     examplePrompt: "Help me solve this problem: I need to reduce my team's response time to customer inquiries.",
     suggestedModels: JSON.stringify(["claude-sonnet-4-5", "gpt-4o"]),
