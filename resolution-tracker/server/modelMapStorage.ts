@@ -671,13 +671,29 @@ Output format:
     return testResult;
   }
 
-  async updateModelTestResult(id: string, updates: { userRating?: number; userNotes?: string }): Promise<ModelTestResult | undefined> {
+  async updateModelTestResult(
+    id: string,
+    updates: {
+      userRating?: number;
+      userNotes?: string;
+      accuracyRating?: number;
+      styleRating?: number;
+      speedRating?: string;
+      xFactor?: number;
+      status?: string;
+    }
+  ): Promise<ModelTestResult | undefined> {
     const existing = this.modelTestResults.get(id);
     if (!existing) return undefined;
     const updated = {
       ...existing,
       userRating: updates.userRating !== undefined ? updates.userRating : existing.userRating,
       userNotes: updates.userNotes !== undefined ? updates.userNotes : existing.userNotes,
+      accuracyRating: updates.accuracyRating !== undefined ? updates.accuracyRating : existing.accuracyRating,
+      styleRating: updates.styleRating !== undefined ? updates.styleRating : existing.styleRating,
+      speedRating: updates.speedRating !== undefined ? updates.speedRating : existing.speedRating,
+      xFactor: updates.xFactor !== undefined ? updates.xFactor : existing.xFactor,
+      status: updates.status !== undefined ? updates.status : existing.status,
     };
     this.modelTestResults.set(id, updated);
     return updated;

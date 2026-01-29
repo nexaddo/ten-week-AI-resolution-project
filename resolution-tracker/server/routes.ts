@@ -831,7 +831,27 @@ export async function registerRoutes(
   app.get("/api/model-map/tests", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user!.id;
+      const includeResults = req.query.includeResults === "true";
       const tests = await modelMapStorage.getModelTests(userId);
+
+      if (includeResults) {
+        // Fetch results for each test and include use case info
+        const testsWithResults = await Promise.all(
+          tests.map(async (test) => {
+            const results = await modelMapStorage.getModelTestResults(test.id);
+            const useCase = test.useCaseId
+              ? await modelMapStorage.getUseCase(test.useCaseId)
+              : null;
+            return {
+              ...test,
+              results,
+              useCase: useCase ? { category: useCase.category } : null,
+            };
+          })
+        );
+        return res.json(testsWithResults);
+      }
+
       res.json(tests);
     } catch (error) {
       log(`Failed to fetch model tests: ${error}`);
@@ -923,8 +943,39 @@ export async function registerRoutes(
 
   app.patch("/api/model-map/tests/:testId/results/:resultId", isAuthenticated, async (req: any, res) => {
     try {
-      const { userRating, userNotes } = req.body;
-      const result = await modelMapStorage.updateModelTestResult(req.params.resultId, { userRating, userNotes });
+      const { userRating, userNotes, accuracyRating, styleRating, speedRating, xFactor, status } = req.body;
+      const result = await modelMapStorage.updateModelTestResult(req.params.resultId, {
+        userRating,
+        userNotes,
+        accuracyRating,
+        styleRating,
+        speedRating,
+        xFactor,
+        status,
+      });
+      if (!result) {
+        return res.status(404).json({ error: "Model test result not found" });
+      }
+      res.json(result);
+    } catch (error) {
+      log(`Failed to update model test result: ${error}`);
+      res.status(500).json({ error: "Failed to update model test result" });
+    }
+  });
+
+  // Direct test result update endpoint (alternative path)
+  app.patch("/api/model-map/test-results/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { userRating, userNotes, accuracyRating, styleRating, speedRating, xFactor, status } = req.body;
+      const result = await modelMapStorage.updateModelTestResult(req.params.id, {
+        userRating,
+        userNotes,
+        accuracyRating,
+        styleRating,
+        speedRating,
+        xFactor,
+        status,
+      });
       if (!result) {
         return res.status(404).json({ error: "Model test result not found" });
       }
