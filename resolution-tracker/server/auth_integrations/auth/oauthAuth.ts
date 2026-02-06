@@ -299,7 +299,7 @@ function buildGithubClaims(profile: GitHubProfile): UserClaims {
 }
 
 export async function setupAuth(app: Express) {
-  app.set("trust proxy", 1);
+  // trust proxy is configured in index.ts — no need to set it again here
   app.use(cookieParser());
   app.use(getSession());
 
@@ -350,16 +350,31 @@ export async function setupAuth(app: Express) {
   const registeredStrategies = new Set<string>();
 
   const getCallbackURL = (req: any, provider: OAuthProvider) => {
-    const domain = req.hostname;
-    const port = req.get("host");
-    const isLocalhost = domain === "localhost" || domain === "127.0.0.1";
-    const protocol = isLocalhost ? "http" : "https";
+    // Use HOST env var for Docker/reverse-proxy deployments where req.hostname
+    // returns the container-internal hostname instead of the public domain.
+    // For local Docker (HOST=localhost, port mapped e.g. 5002:5000), we need
+    // req.get("host") which includes the correct external port.
+    const envHost = process.env.HOST;
+    const reqHost = req.get("host") || req.hostname;
 
-    if (provider === "github") {
-      return `${protocol}://${port}/api/callback/github`;
+    let host: string;
+    if (envHost && envHost !== "localhost" && envHost !== "127.0.0.1") {
+      // Production: use the configured domain (no port needed, reverse proxy handles it)
+      host = envHost;
+    } else {
+      // Local dev or local Docker: use req host which includes the correct port
+      host = reqHost;
     }
 
-    return `${protocol}://${port}/api/callback?provider=${provider}`;
+    const isLocalhost = host === "localhost" || host.startsWith("localhost:") || host.startsWith("127.0.0.1");
+    const protocol = isLocalhost ? "http" : "https";
+    const baseUrl = `${protocol}://${host}`;
+
+    if (provider === "github") {
+      return `${baseUrl}/api/callback/github`;
+    }
+
+    return `${baseUrl}/api/callback?provider=${provider}`;
   };
 
   const ensureOidcStrategy = async (req: any, provider: OidcProvider) => {
@@ -368,8 +383,8 @@ export async function setupAuth(app: Express) {
       return null;
     }
 
-    const strategyName = `oidc:${provider}:${req.hostname}`;
     const callbackURL = getCallbackURL(req, provider);
+    const strategyName = `oidc:${provider}:${callbackURL}`;
     const providerConfig = getOidcProviderConfig(provider);
 
     if (!registeredStrategies.has(strategyName)) {
@@ -394,9 +409,9 @@ export async function setupAuth(app: Express) {
   };
 
   const ensureGithubStrategy = (req: any) => {
-    const strategyName = `github:${req.hostname}`;
+    const callbackURL = getCallbackURL(req, "github");
+    const strategyName = `github:${callbackURL}`;
     if (!registeredStrategies.has(strategyName)) {
-      const callbackURL = getCallbackURL(req, "github");
       const strategy = new GitHubStrategy(
         {
           clientID: process.env.GITHUB_CLIENT_ID!,
@@ -506,10 +521,16 @@ export async function setupAuth(app: Express) {
       }
 
       try {
+        const envHost = process.env.HOST;
+        const reqHost = req.get("host") || req.hostname;
+        const host = envHost && envHost !== "localhost" && envHost !== "127.0.0.1" ? envHost : reqHost;
+        const isLocal = host === "localhost" || host.startsWith("localhost:") || host.startsWith("127.0.0.1");
+        const proto = isLocal ? "http" : "https";
+
         return res.redirect(
           client.buildEndSessionUrl(config, {
             client_id: clientId,
-            post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+            post_logout_redirect_uri: `${proto}://${host}`,
           }).href
         );
       } catch (error) {

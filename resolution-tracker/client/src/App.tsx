@@ -15,6 +15,7 @@ import { Settings } from "@/pages/settings";
 import { Analytics } from "@/pages/analytics";
 import { AIDashboard } from "@/pages/ai-dashboard";
 import PromptPlaygroundEnhanced from "@/pages/prompt-playground-enhanced";
+import { MyMapPage, UseCasesPage, TestLabPage, MyModelsPage } from "@/pages/model-map";
 import { Landing } from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
@@ -36,6 +37,11 @@ function Router({ selectedCategory }: { selectedCategory: Category | null }) {
       <Route path="/analytics" component={Analytics} />
       <Route path="/ai-dashboard" component={AIDashboard} />
       <Route path="/prompt-playground" component={PromptPlaygroundEnhanced} />
+      <Route path="/model-map" component={MyMapPage} />
+      <Route path="/model-map/my-map" component={MyMapPage} />
+      <Route path="/model-map/use-cases" component={UseCasesPage} />
+      <Route path="/model-map/test-lab" component={TestLabPage} />
+      <Route path="/model-map/my-models" component={MyModelsPage} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

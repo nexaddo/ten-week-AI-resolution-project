@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { MemStorage } from "../server/storage";
-import type { InsertResolution, InsertCheckIn } from "@shared/schema";
+import type { InsertResolution } from "../shared/schema";
 
 describe("Analytics Storage", () => {
   let storage: MemStorage;

@@ -19,8 +19,10 @@ RUN npm run build
 # Production stage - only runtime dependencies
 FROM node:25-alpine
 
-# Install PostgreSQL client for backups
-RUN apk add --no-cache postgresql-client
+# Install PostgreSQL client for backups and create non-root user
+RUN apk add --no-cache postgresql-client && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
 
 WORKDIR /app
 
@@ -30,26 +32,31 @@ COPY package*.json ./
 # Install only production dependencies (keep tsx and drizzle-kit for migrations)
 # Use npm install instead of npm ci due to optional dependency sync issues
 RUN npm install --omit=dev --omit=optional && \
-    npm install -g tsx && \
-    npm install --save-dev drizzle-kit
+    npm install drizzle-kit tsx && \
+    npm cache clean --force && \
+    chown -R nodejs:nodejs /app
 
 # Copy built application from builder stage
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/shared ./shared
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/shared ./shared
 
 # Copy configuration and scripts
-COPY drizzle.config.ts ./
-COPY script/backup-db.ts ./script/
-COPY script/restore-db.ts ./script/
-COPY script/migrate.ts ./script/
-COPY script/safe-db-push.ts ./script/
+COPY --chown=nodejs:nodejs drizzle.config.ts ./
+COPY --chown=nodejs:nodejs script/backup-db.ts ./script/
+COPY --chown=nodejs:nodejs script/restore-db.ts ./script/
+COPY --chown=nodejs:nodejs script/migrate.ts ./script/
+COPY --chown=nodejs:nodejs script/safe-db-push.ts ./script/
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Create backups directory
-RUN mkdir -p /app/backups
+# Create backups directory with proper ownership
+RUN mkdir -p /app/backups && \
+    chown nodejs:nodejs /app/backups
+
+# Switch to non-root user
+USER nodejs
 
 # Expose port
 EXPOSE 5000

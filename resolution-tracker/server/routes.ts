@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
-import { 
-  insertResolutionSchema, 
-  insertMilestoneSchema, 
-  insertCheckInSchema, 
+import { modelMapStorage } from "./modelMapStorage";
+import {
+  insertResolutionSchema,
+  insertMilestoneSchema,
+  insertCheckInSchema,
   insertPromptTestSchema,
   insertPromptTemplateSchema,
   insertUserFavoriteSchema,
@@ -12,6 +13,8 @@ import {
   insertTestCaseConfigurationSchema,
   insertModelFavoriteSchema,
   insertToolFavoriteSchema,
+  insertUseCaseSchema,
+  insertModelTestSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth_integrations/auth";
@@ -574,6 +577,619 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to delete prompt test" });
     }
   });
+
+  // ============================================
+  // MODEL MAP ROUTES
+  // ============================================
+
+  // AI Models (global catalog)
+  app.get("/api/model-map/models", async (_req, res) => {
+    try {
+      const models = await modelMapStorage.getAiModels();
+      res.json(models);
+    } catch (error) {
+      log(`Failed to fetch AI models: ${error}`);
+      res.status(500).json({ error: "Failed to fetch AI models" });
+    }
+  });
+
+  app.get("/api/model-map/models/:id", async (req, res) => {
+    try {
+      const model = await modelMapStorage.getAiModel(req.params.id);
+      if (!model) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+      res.json(model);
+    } catch (error) {
+      log(`Failed to fetch AI model: ${error}`);
+      res.status(500).json({ error: "Failed to fetch AI model" });
+    }
+  });
+
+  // AI Tools (global catalog)
+  app.get("/api/model-map/tools", async (_req, res) => {
+    try {
+      const tools = await modelMapStorage.getAiTools();
+      res.json(tools);
+    } catch (error) {
+      log(`Failed to fetch AI tools: ${error}`);
+      res.status(500).json({ error: "Failed to fetch AI tools" });
+    }
+  });
+
+  app.get("/api/model-map/tools/:id", async (req, res) => {
+    try {
+      const tool = await modelMapStorage.getAiTool(req.params.id);
+      if (!tool) {
+        return res.status(404).json({ error: "Tool not found" });
+      }
+      res.json(tool);
+    } catch (error) {
+      log(`Failed to fetch AI tool: ${error}`);
+      res.status(500).json({ error: "Failed to fetch AI tool" });
+    }
+  });
+
+  // User Models (user-specific selections)
+  app.get("/api/model-map/user/models", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const includeStats = req.query.includeStats === "true";
+      const userModels = await modelMapStorage.getUserModels(userId);
+
+      if (!includeStats) {
+        return res.json(userModels);
+      }
+
+      // Calculate stats for each model from test results
+      const tests = await modelMapStorage.getModelTests(userId);
+      const userModelsWithStats = await Promise.all(
+        userModels.map(async (um) => {
+          // Get all results for this model across all tests
+          let modelResults: any[] = [];
+          for (const test of tests) {
+            const testResults = await modelMapStorage.getModelTestResults(test.id);
+            modelResults.push(...testResults.filter(r => r.modelId === um.modelId));
+          }
+
+          // Calculate stats from completed, rated results
+          const ratedResults = modelResults.filter(r =>
+            r.status === "completed" && (r.userRating !== null || r.accuracyRating !== null)
+          );
+
+          const stats = ratedResults.length > 0
+            ? {
+                testCount: ratedResults.length,
+                avgOverall: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.userRating ?? 0), 0) / ratedResults.length
+                ),
+                avgAccuracy: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.accuracyRating ?? 0), 0) / ratedResults.length * 10
+                ) / 10,
+                avgStyle: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.styleRating ?? 0), 0) / ratedResults.length * 10
+                ) / 10,
+              }
+            : {
+                testCount: 0,
+                avgOverall: 0,
+                avgAccuracy: 0,
+                avgStyle: 0,
+              };
+
+          return { ...um, stats };
+        })
+      );
+
+      res.json(userModelsWithStats);
+    } catch (error) {
+      log(`Failed to fetch user models: ${error}`);
+      res.status(500).json({ error: "Failed to fetch user models" });
+    }
+  });
+
+  app.post("/api/model-map/user/models", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const { modelId, notes } = req.body;
+      const userModel = await modelMapStorage.addUserModel({ userId, modelId, notes });
+      res.status(201).json(userModel);
+    } catch (error) {
+      log(`Failed to add user model: ${error}`);
+      res.status(500).json({ error: "Failed to add user model" });
+    }
+  });
+
+  app.delete("/api/model-map/user/models/:modelId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const deleted = await modelMapStorage.removeUserModel(userId, req.params.modelId);
+      if (!deleted) {
+        return res.status(404).json({ error: "User model not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to remove user model: ${error}`);
+      res.status(500).json({ error: "Failed to remove user model" });
+    }
+  });
+
+  // User Tools (user-specific selections)
+  app.get("/api/model-map/user/tools", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const includeStats = req.query.includeStats === "true";
+      const userTools = await modelMapStorage.getUserTools(userId);
+
+      if (!includeStats) {
+        return res.json(userTools);
+      }
+
+      // Calculate stats for each tool from test results
+      const tests = await modelMapStorage.getModelTests(userId);
+      const userToolsWithStats = await Promise.all(
+        userTools.map(async (ut) => {
+          // Get all results for this tool across all tests
+          let toolResults: any[] = [];
+          for (const test of tests) {
+            const testResults = await modelMapStorage.getModelTestResults(test.id);
+            toolResults.push(...testResults.filter(r => r.toolId === ut.toolId));
+          }
+
+          // Calculate stats from completed, rated results
+          const ratedResults = toolResults.filter(r =>
+            r.status === "completed" && (r.userRating !== null || r.accuracyRating !== null)
+          );
+
+          const stats = ratedResults.length > 0
+            ? {
+                testCount: ratedResults.length,
+                avgOverall: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.userRating ?? 0), 0) / ratedResults.length
+                ),
+                avgAccuracy: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.accuracyRating ?? 0), 0) / ratedResults.length * 10
+                ) / 10,
+                avgStyle: Math.round(
+                  ratedResults.reduce((sum, r) => sum + (r.styleRating ?? 0), 0) / ratedResults.length * 10
+                ) / 10,
+              }
+            : {
+                testCount: 0,
+                avgOverall: 0,
+                avgAccuracy: 0,
+                avgStyle: 0,
+              };
+
+          return { ...ut, stats };
+        })
+      );
+
+      res.json(userToolsWithStats);
+    } catch (error) {
+      log(`Failed to fetch user tools: ${error}`);
+      res.status(500).json({ error: "Failed to fetch user tools" });
+    }
+  });
+
+  app.post("/api/model-map/user/tools", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const { toolId, notes } = req.body;
+      const userTool = await modelMapStorage.addUserTool({ userId, toolId, notes });
+      res.status(201).json(userTool);
+    } catch (error) {
+      log(`Failed to add user tool: ${error}`);
+      res.status(500).json({ error: "Failed to add user tool" });
+    }
+  });
+
+  app.delete("/api/model-map/user/tools/:toolId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const deleted = await modelMapStorage.removeUserTool(userId, req.params.toolId);
+      if (!deleted) {
+        return res.status(404).json({ error: "User tool not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to remove user tool: ${error}`);
+      res.status(500).json({ error: "Failed to remove user tool" });
+    }
+  });
+
+  // Use Cases
+  app.get("/api/model-map/use-cases", async (req, res) => {
+    try {
+      const { category, curated } = req.query;
+      const filters: { category?: string; isCurated?: boolean } = {};
+      if (category && typeof category === "string") {
+        filters.category = category;
+      }
+      if (curated === "true") {
+        filters.isCurated = true;
+      }
+      const useCases = await modelMapStorage.getUseCases(filters);
+      res.json(useCases);
+    } catch (error) {
+      log(`Failed to fetch use cases: ${error}`);
+      res.status(500).json({ error: "Failed to fetch use cases" });
+    }
+  });
+
+  app.get("/api/model-map/use-cases/:id", async (req, res) => {
+    try {
+      const useCase = await modelMapStorage.getUseCase(req.params.id);
+      if (!useCase) {
+        return res.status(404).json({ error: "Use case not found" });
+      }
+      res.json(useCase);
+    } catch (error) {
+      log(`Failed to fetch use case: ${error}`);
+      res.status(500).json({ error: "Failed to fetch use case" });
+    }
+  });
+
+  app.post("/api/model-map/use-cases", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const validated = insertUseCaseSchema.parse({
+        ...req.body,
+        authorId: userId,
+        isCurated: false,
+        isPublic: true,
+      });
+      const useCase = await modelMapStorage.createUseCase(validated);
+      res.status(201).json(useCase);
+    } catch (error) {
+      log(`Failed to create use case: ${error}`);
+      res.status(500).json({ error: "Failed to create use case" });
+    }
+  });
+
+  app.put("/api/model-map/use-cases/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const useCase = await modelMapStorage.getUseCase(req.params.id);
+      if (!useCase) {
+        return res.status(404).json({ error: "Use case not found" });
+      }
+      if (useCase.authorId !== userId) {
+        return res.status(403).json({ error: "Not authorized to edit this use case" });
+      }
+      const updated = await modelMapStorage.updateUseCase(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      log(`Failed to update use case: ${error}`);
+      res.status(500).json({ error: "Failed to update use case" });
+    }
+  });
+
+  app.delete("/api/model-map/use-cases/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const deleted = await modelMapStorage.deleteUseCase(req.params.id, userId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Use case not found or not authorized" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to delete use case: ${error}`);
+      res.status(500).json({ error: "Failed to delete use case" });
+    }
+  });
+
+  // User Use Cases (favorites)
+  app.get("/api/model-map/user/use-cases", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const userUseCases = await modelMapStorage.getUserUseCases(userId);
+      res.json(userUseCases);
+    } catch (error) {
+      log(`Failed to fetch user use cases: ${error}`);
+      res.status(500).json({ error: "Failed to fetch user use cases" });
+    }
+  });
+
+  app.post("/api/model-map/user/use-cases", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const { useCaseId } = req.body;
+      const userUseCase = await modelMapStorage.addUserUseCase({ userId, useCaseId });
+      res.status(201).json(userUseCase);
+    } catch (error) {
+      log(`Failed to add user use case: ${error}`);
+      res.status(500).json({ error: "Failed to add user use case" });
+    }
+  });
+
+  app.delete("/api/model-map/user/use-cases/:useCaseId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const deleted = await modelMapStorage.removeUserUseCase(userId, req.params.useCaseId);
+      if (!deleted) {
+        return res.status(404).json({ error: "User use case not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to remove user use case: ${error}`);
+      res.status(500).json({ error: "Failed to remove user use case" });
+    }
+  });
+
+  // Model Tests
+  app.get("/api/model-map/tests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const includeResults = req.query.includeResults === "true";
+      const tests = await modelMapStorage.getModelTests(userId);
+
+      if (includeResults) {
+        // Fetch results for each test and include use case info
+        const testsWithResults = await Promise.all(
+          tests.map(async (test) => {
+            const results = await modelMapStorage.getModelTestResults(test.id);
+            const useCase = test.useCaseId
+              ? await modelMapStorage.getUseCase(test.useCaseId)
+              : null;
+            return {
+              ...test,
+              results,
+              useCase: useCase ? { category: useCase.category } : null,
+            };
+          })
+        );
+        return res.json(testsWithResults);
+      }
+
+      res.json(tests);
+    } catch (error) {
+      log(`Failed to fetch model tests: ${error}`);
+      res.status(500).json({ error: "Failed to fetch model tests" });
+    }
+  });
+
+  app.get("/api/model-map/tests/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const test = await modelMapStorage.getModelTest(req.params.id, userId);
+      if (!test) {
+        return res.status(404).json({ error: "Model test not found" });
+      }
+      res.json(test);
+    } catch (error) {
+      log(`Failed to fetch model test: ${error}`);
+      res.status(500).json({ error: "Failed to fetch model test" });
+    }
+  });
+
+  app.post("/api/model-map/tests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const { title, useCaseId, prompt, systemPrompt } = req.body;
+
+      // Derive prompt from use case if not provided by client
+      let resolvedPrompt = prompt as string | undefined;
+      let resolvedSystemPrompt = systemPrompt as string | undefined;
+      if (!resolvedPrompt && useCaseId) {
+        const useCase = await modelMapStorage.getUseCase(useCaseId);
+        if (!useCase) {
+          return res.status(400).json({ error: "Invalid useCaseId: use case not found" });
+        }
+        if (useCase.promptTemplate) {
+          resolvedPrompt = useCase.promptTemplate;
+        }
+      }
+
+      const validated = insertModelTestSchema.parse({
+        title: title || "Untitled Test",
+        useCaseId: useCaseId || null,
+        prompt: resolvedPrompt || "",
+        systemPrompt: resolvedSystemPrompt || null,
+        status: "pending",
+      });
+
+      const test = await modelMapStorage.createModelTest({
+        ...validated,
+        userId,
+      });
+      res.status(201).json(test);
+    } catch (error) {
+      log(`Failed to create model test: ${error}`);
+      res.status(500).json({ error: "Failed to create model test" });
+    }
+  });
+
+  app.delete("/api/model-map/tests/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const deleted = await modelMapStorage.deleteModelTest(req.params.id, userId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Model test not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      log(`Failed to delete model test: ${error}`);
+      res.status(500).json({ error: "Failed to delete model test" });
+    }
+  });
+
+  // Model Test Results
+  app.get("/api/model-map/tests/:testId/results", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const test = await modelMapStorage.getModelTest(req.params.testId, userId);
+      if (!test) {
+        return res.status(404).json({ error: "Model test not found" });
+      }
+      const results = await modelMapStorage.getModelTestResults(req.params.testId);
+      res.json(results);
+    } catch (error) {
+      log(`Failed to fetch model test results: ${error}`);
+      res.status(500).json({ error: "Failed to fetch model test results" });
+    }
+  });
+
+  app.post("/api/model-map/tests/:testId/results", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const test = await modelMapStorage.getModelTest(req.params.testId, userId);
+      if (!test) {
+        return res.status(404).json({ error: "Model test not found" });
+      }
+      const result = await modelMapStorage.createModelTestResult({
+        testId: req.params.testId,
+        ...req.body,
+      });
+      res.status(201).json(result);
+    } catch (error) {
+      log(`Failed to create model test result: ${error}`);
+      res.status(500).json({ error: "Failed to create model test result" });
+    }
+  });
+
+  app.patch("/api/model-map/tests/:testId/results/:resultId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const { userRating, userNotes, accuracyRating, styleRating, speedRating, xFactor, status } = req.body;
+      const result = await modelMapStorage.updateModelTestResult(req.params.resultId, {
+        userRating,
+        userNotes,
+        accuracyRating,
+        styleRating,
+        speedRating,
+        xFactor,
+        status,
+      });
+      if (!result) {
+        return res.status(404).json({ error: "Model test result not found" });
+      }
+
+      // Get the test and check if all results are completed
+      const test = await modelMapStorage.getModelTestById(result.testId);
+      if (test) {
+        const allResults = await modelMapStorage.getModelTestResults(test.id);
+        const allCompleted = allResults.every(r => r.status === "completed" || r.userRating);
+
+        // Update test status to completed if all results are done
+        if (allCompleted && test.status === "pending") {
+          await modelMapStorage.updateModelTest(test.id, { status: "completed" });
+        }
+
+        // Generate/update recommendations if test has rated results
+        if (allCompleted && test.useCaseId) {
+          const ratedResults = allResults.filter(r => r.userRating);
+          if (ratedResults.length > 0) {
+            const useCase = await modelMapStorage.getUseCase(test.useCaseId);
+            if (useCase) {
+              const avgRating = Math.round(
+                ratedResults.reduce((sum, r) => sum + (r.userRating || 0), 0) / ratedResults.length
+              );
+
+              // Find best model/tool from results
+              const bestResult = ratedResults.reduce((best, r) =>
+                (r.userRating || 0) > (best.userRating || 0) ? r : best
+              );
+
+              if (bestResult.modelId) {
+                await modelMapStorage.updateRecommendation(
+                  userId,
+                  useCase.category,
+                  bestResult.modelId,
+                  avgRating
+                );
+              }
+            }
+          }
+        }
+      }
+
+      res.json(result);
+    } catch (error) {
+      log(`Failed to update model test result: ${error}`);
+      res.status(500).json({ error: "Failed to update model test result" });
+    }
+  });
+
+  // Direct test result update endpoint (alternative path)
+  app.patch("/api/model-map/test-results/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const { userRating, userNotes, accuracyRating, styleRating, speedRating, xFactor, status } = req.body;
+      const result = await modelMapStorage.updateModelTestResult(req.params.id, {
+        userRating,
+        userNotes,
+        accuracyRating,
+        styleRating,
+        speedRating,
+        xFactor,
+        status,
+      });
+      if (!result) {
+        return res.status(404).json({ error: "Model test result not found" });
+      }
+
+      // Get the test and check if all results are completed
+      const test = await modelMapStorage.getModelTestById(result.testId);
+      if (test) {
+        const allResults = await modelMapStorage.getModelTestResults(test.id);
+        const allCompleted = allResults.every(r => r.status === "completed" || r.userRating);
+
+        // Update test status to completed if all results are done
+        if (allCompleted && test.status === "pending") {
+          await modelMapStorage.updateModelTest(test.id, { status: "completed" });
+        }
+
+        // Generate/update recommendations if test has rated results
+        if (allCompleted && test.useCaseId) {
+          const ratedResults = allResults.filter(r => r.userRating);
+          if (ratedResults.length > 0) {
+            const useCase = await modelMapStorage.getUseCase(test.useCaseId);
+            if (useCase) {
+              const avgRating = Math.round(
+                ratedResults.reduce((sum, r) => sum + (r.userRating || 0), 0) / ratedResults.length
+              );
+
+              // Find best model/tool from results
+              const bestResult = ratedResults.reduce((best, r) =>
+                (r.userRating || 0) > (best.userRating || 0) ? r : best
+              );
+
+              if (bestResult.modelId) {
+                await modelMapStorage.updateRecommendation(
+                  userId,
+                  useCase.category,
+                  bestResult.modelId,
+                  avgRating
+                );
+              }
+            }
+          }
+        }
+      }
+
+      res.json(result);
+    } catch (error) {
+      log(`Failed to update model test result: ${error}`);
+      res.status(500).json({ error: "Failed to update model test result" });
+    }
+  });
+
+  // Model Recommendations
+  app.get("/api/model-map/recommendations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req as any).user?.claims?.sub;
+      const recommendations = await modelMapStorage.getUserRecommendations(userId);
+      res.json(recommendations);
+    } catch (error) {
+      log(`Failed to fetch recommendations: ${error}`);
+      res.status(500).json({ error: "Failed to fetch recommendations" });
+    }
+  });
+
+  // ============================================
+  // PROMPT TEMPLATE ROUTES (from prompt-playground-enhanced)
+  // ============================================
 
   // Prompt Template endpoints
   app.get("/api/prompt-templates", isAuthenticated, async (req: any, res) => {
