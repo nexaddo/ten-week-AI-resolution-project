@@ -56,13 +56,14 @@ uses the `provider` query param or `DEFAULT_AUTH_PROVIDER` to choose one.
 
 ## 🧪 Testing OAuth Locally
 
-1. **Application is running on**: `http://localhost:5000`
-2. **Callback URLs**:
-   - Google: `http://localhost:5000/api/callback?provider=google`
-   - GitHub: `http://localhost:5000/api/callback/github`
-   - Apple: `http://localhost:5000/api/callback?provider=apple`
-3. **Login Route**: `/api/login?provider=<provider>`
-4. **Logout Route**: `/api/logout?provider=<provider>`
+1. **Direct dev** (`npm run dev`): app on `http://localhost:5000`
+2. **Docker dev** (`docker compose up`): app on `http://localhost:5002` (mapped to 5000 inside)
+3. **Callback URLs** (use the port matching your setup):
+   - Google: `http://localhost:<port>/api/callback?provider=google`
+   - GitHub: `http://localhost:<port>/api/callback/github`
+   - Apple: `http://localhost:<port>/api/callback?provider=apple`
+4. **Login Route**: `/api/login?provider=<provider>`
+5. **Logout Route**: `/api/logout?provider=<provider>`
 
 ## 🚀 Switching Between OAuth Providers
 

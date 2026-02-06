@@ -16,8 +16,11 @@ app for both environments.
 
 ## Prerequisites
 
-- Local development environment running on `http://localhost:5000`
+- Local development environment:
+  - **Direct** (`npm run dev`): `http://localhost:5000`
+  - **Docker** (`docker compose up`): `http://localhost:5002` (port mapped to 5000 inside)
 - OAuth credentials for the provider(s) you plan to use
+- **Important**: Register callback URLs matching the port you actually use
 
 ## Step 1: Create OAuth Credentials
 
@@ -27,8 +30,9 @@ app for both environments.
 2. Create a new project (or use an existing one)
 3. Go to **Credentials** → **Create Credentials** → **OAuth client ID**
 4. Choose **Web application**
-5. Add **Authorized redirect URIs** (can add both):
-   - `http://localhost:5000/api/callback?provider=google` (dev)
+5. Add **Authorized redirect URIs** (add the ones you need):
+   - `http://localhost:5000/api/callback?provider=google` (direct dev)
+   - `http://localhost:5002/api/callback?provider=google` (Docker dev)
    - `https://yourdomain.com/api/callback?provider=google` (prod)
 6. Copy your **Client ID** and **Client Secret**
 
@@ -40,8 +44,9 @@ app for both environments.
 
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
 2. Create a new **OAuth App**
-3. Set **Authorization callback URL**:
-   `http://localhost:5000/api/callback/github`
+3. Set **Authorization callback URL** (use the port matching your setup):
+   - Direct dev: `http://localhost:5000/api/callback/github`
+   - Docker dev: `http://localhost:5002/api/callback/github`
 4. Copy the **Client ID** and **Client Secret** for your `.env` file
 
 **Production App:**
@@ -55,8 +60,9 @@ app for both environments.
 
 1. Create a **Service ID** in the Apple Developer portal
 2. Enable **Sign in with Apple**
-3. Add callback URLs (can add both):
-   - `http://localhost:5000/api/callback?provider=apple` (dev)
+3. Add callback URLs (add the ones you need):
+   - `http://localhost:5000/api/callback?provider=apple` (direct dev)
+   - `http://localhost:5002/api/callback?provider=apple` (Docker dev)
    - `https://yourdomain.com/api/callback?provider=apple` (prod)
 4. Generate a **client secret JWT**
 
@@ -131,8 +137,11 @@ APPLE_CLIENT_SECRET=your-apple-client-secret-jwt-here
 ### "Redirect URI mismatch" Error
 
 - Check callback URL matches exactly what's configured in OAuth provider
-- GitHub: Must be exact match — `http://localhost:5000/api/callback/github`
-- Google: `http://localhost:5000/api/callback?provider=google`
+- The port must match how you run the app:
+  - Direct dev (`npm run dev`): port 5000
+  - Docker dev (`docker compose up`): port 5002
+- GitHub: Must be exact match — e.g. `http://localhost:5000/api/callback/github`
+- Google: e.g. `http://localhost:5002/api/callback?provider=google`
 
 ### OAuth Not Working Behind Reverse Proxy
 
@@ -150,11 +159,11 @@ APPLE_CLIENT_SECRET=your-apple-client-secret-jwt-here
 
 ## Callback URL Summary
 
-| Provider | Development | Production |
-| -------- | ----------- | ---------- |
-| Google | `http://localhost:5000/api/callback?provider=google` | `https://yourdomain.com/api/callback?provider=google` |
-| GitHub | `http://localhost:5000/api/callback/github` | `https://yourdomain.com/api/callback/github` |
-| Apple | `http://localhost:5000/api/callback?provider=apple` | `https://yourdomain.com/api/callback?provider=apple` |
+| Provider | Direct Dev (port 5000) | Docker Dev (port 5002) | Production |
+| -------- | ---------------------- | ---------------------- | ---------- |
+| Google | `http://localhost:5000/api/callback?provider=google` | `http://localhost:5002/api/callback?provider=google` | `https://yourdomain.com/api/callback?provider=google` |
+| GitHub | `http://localhost:5000/api/callback/github` | `http://localhost:5002/api/callback/github` | `https://yourdomain.com/api/callback/github` |
+| Apple | `http://localhost:5000/api/callback?provider=apple` | `http://localhost:5002/api/callback?provider=apple` | `https://yourdomain.com/api/callback?provider=apple` |
 
 ## Security Notes
 
