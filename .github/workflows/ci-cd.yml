@@ -129,6 +129,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       image_tags: ${{ steps.meta.outputs.tags }}
+      tag_exists: ${{ steps.version.outputs.tag_exists }}
 
     steps:
       - name: Checkout code
@@ -143,6 +144,17 @@ jobs:
           VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Generated version: $VERSION"
+
+          # Check if a tag already exists on this commit
+          EXISTING_TAG=$(git tag --points-at HEAD 2>/dev/null | head -n 1)
+          if [ -n "$EXISTING_TAG" ]; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "existing_tag=$EXISTING_TAG" >> $GITHUB_OUTPUT
+            echo "Tag '$EXISTING_TAG' already exists on this commit"
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+            echo "No existing tag on this commit"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -224,7 +236,7 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.build-and-push.outputs.tag_exists != 'true'
 
     permissions:
       contents: write
