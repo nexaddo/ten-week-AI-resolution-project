@@ -2,31 +2,31 @@
 
 ## ✅ Current Setup
 
-Your application now supports **Google, GitHub, Apple, and Replit Auth**.
+Your application now supports **Google, GitHub, and Apple Auth**.
 
 ### Google OAuth (OIDC)
+
 - **Status**: ✅ Available
 - **Client ID**: `GOOGLE_CLIENT_ID`
 - **Issuer**: `https://accounts.google.com`
+- **Callback**: `/api/callback?provider=google`
 
 ### GitHub OAuth
+
 - **Status**: ✅ Available
 - **Client ID**: `GITHUB_CLIENT_ID`
-- **Callback**: `http://localhost:5000/api/callback?provider=github`
+- **Callback**: `/api/callback/github`
 
 ### Apple OAuth (OIDC)
+
 - **Status**: ✅ Available
 - **Client ID**: `APPLE_CLIENT_ID`
 - **Issuer**: `https://appleid.apple.com`
-
-### Replit Auth (Available for deployment)
-- **Status**: Available (not active locally)
-- **Activation**: Set `REPL_ID` in `.env` or environment variables
-- **Use Case**: For deploying to Replit.com
+- **Callback**: `/api/callback?provider=apple`
 
 ## 📋 Environment Variables
 
-### Current `.env` Configuration:
+### Current `.env` Configuration
 
 ```env
 # Google OAuth
@@ -40,9 +40,6 @@ GITHUB_CLIENT_SECRET=your-github-client-secret-here
 # Apple OAuth
 APPLE_CLIENT_ID=your-apple-service-id-here
 APPLE_CLIENT_SECRET=your-apple-client-secret-jwt-here
-
-# Replit deployment
-# REPL_ID=your-replit-id
 
 # Optional default provider
 # DEFAULT_AUTH_PROVIDER=google
@@ -60,36 +57,41 @@ uses the `provider` query param or `DEFAULT_AUTH_PROVIDER` to choose one.
 ## 🧪 Testing OAuth Locally
 
 1. **Application is running on**: `http://localhost:5000`
-2. **Callback URL**: `http://localhost:5000/api/callback?provider=<provider>`
+2. **Callback URLs**:
+   - Google: `http://localhost:5000/api/callback?provider=google`
+   - GitHub: `http://localhost:5000/api/callback/github`
+   - Apple: `http://localhost:5000/api/callback?provider=apple`
 3. **Login Route**: `/api/login?provider=<provider>`
 4. **Logout Route**: `/api/logout?provider=<provider>`
 
 ## 🚀 Switching Between OAuth Providers
 
-### To use Replit Auth instead of Google:
-
-```env
-# Comment out or remove these:
-# GOOGLE_CLIENT_ID=...
-# GOOGLE_CLIENT_SECRET=...
-
-# Add this:
-REPL_ID=your-replit-project-id
-```
-
-### To return to Google Auth:
+### To use only Google
 
 ```env
 GOOGLE_CLIENT_ID=your-client-id
 GOOGLE_CLIENT_SECRET=your-client-secret
 
-# Comment out:
-# REPL_ID=...
+# Comment out others:
+# GITHUB_CLIENT_ID=...
+# GITHUB_CLIENT_SECRET=...
+```
+
+### To use only GitHub
+
+```env
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+
+# Comment out others:
+# GOOGLE_CLIENT_ID=...
+# GOOGLE_CLIENT_SECRET=...
 ```
 
 ## 📝 Important Notes
 
 ⚠️ **Security**: The `.env` file contains sensitive credentials:
+
 - **Never commit** `.env` to Git
 - **Never share** `CLIENT_SECRET` publicly
 - For production, use secure environment variable management
@@ -104,6 +106,7 @@ To add support for other OIDC providers (Microsoft, etc.):
 4. The app will automatically discover and use the provider
 
 Example:
+
 ```env
 ISSUER_URL=https://login.microsoftonline.com/common
 CLIENT_ID=your-microsoft-client-id
@@ -118,3 +121,4 @@ CLIENT_SECRET=your-microsoft-secret
 - ✅ Development mode without OAuth
 - ✅ Multi-provider support
 - ✅ Secure cookie-based sessions
+- ✅ Docker/reverse-proxy support via `HOST` env var

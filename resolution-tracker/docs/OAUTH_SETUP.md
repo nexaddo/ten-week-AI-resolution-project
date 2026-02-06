@@ -1,14 +1,18 @@
 # Setting Up OAuth for Local Development
 
-This guide will help you set up Google, GitHub, or Apple OAuth for local development of the Resolution Tracker application.
+This guide will help you set up Google, GitHub, or Apple OAuth for local
+development of the Resolution Tracker application.
 
 ## Important: Separate OAuth Apps for GitHub
 
-**GitHub only allows ONE callback URL per OAuth app.** You must create separate apps:
-- **Development app**: Callback `http://localhost:5000/api/auth/github/callback`
-- **Production app**: Callback `https://yourdomain.com/api/auth/github/callback`
+**GitHub only allows ONE callback URL per OAuth app.** You must create
+separate apps:
 
-Google and Apple support multiple callback URLs, so you can use the same app for both environments.
+- **Development app**: Callback `http://localhost:5000/api/callback/github`
+- **Production app**: Callback `https://yourdomain.com/api/callback/github`
+
+Google and Apple support multiple callback URLs, so you can use the same
+app for both environments.
 
 ## Prerequisites
 
@@ -24,23 +28,27 @@ Google and Apple support multiple callback URLs, so you can use the same app for
 3. Go to **Credentials** → **Create Credentials** → **OAuth client ID**
 4. Choose **Web application**
 5. Add **Authorized redirect URIs** (can add both):
-   - `http://localhost:5000/api/auth/google/callback` (dev)
-   - `https://yourdomain.com/api/auth/google/callback` (prod)
+   - `http://localhost:5000/api/callback?provider=google` (dev)
+   - `https://yourdomain.com/api/callback?provider=google` (prod)
 6. Copy your **Client ID** and **Client Secret**
 
-### GitHub (OAuth) - ONE Callback Only!
+### GitHub (OAuth) - ONE Callback Only
 
 **Create TWO separate OAuth apps:**
 
 **Development App:**
+
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
 2. Create a new **OAuth App**
-3. Set **Authorization callback URL**: `http://localhost:5000/api/auth/github/callback`
+3. Set **Authorization callback URL**:
+   `http://localhost:5000/api/callback/github`
 4. Copy the **Client ID** and **Client Secret** for your `.env` file
 
 **Production App:**
+
 1. Create another **OAuth App**
-2. Set **Authorization callback URL**: `https://yourdomain.com/api/auth/github/callback`
+2. Set **Authorization callback URL**:
+   `https://yourdomain.com/api/callback/github`
 3. Copy credentials for your production `.env` file
 
 ### Apple (OIDC) - Supports Multiple Callbacks
@@ -48,8 +56,8 @@ Google and Apple support multiple callback URLs, so you can use the same app for
 1. Create a **Service ID** in the Apple Developer portal
 2. Enable **Sign in with Apple**
 3. Add callback URLs (can add both):
-   - `http://localhost:5000/api/auth/apple/callback`
-   - `https://yourdomain.com/api/auth/apple/callback`
+   - `http://localhost:5000/api/callback?provider=apple` (dev)
+   - `https://yourdomain.com/api/callback?provider=apple` (prod)
 4. Generate a **client secret JWT**
 
 ## Step 2: Update Your `.env` File
@@ -83,7 +91,7 @@ PORT=5000
 ### Production (`.env` on NAS)
 
 ```env
-# Server
+# Server - required for Docker/reverse-proxy callback URL construction
 HOST=resolutions.yourdomain.com
 
 # Google OAuth (same as dev, or separate prod app)
@@ -102,6 +110,7 @@ APPLE_CLIENT_SECRET=your-apple-client-secret-jwt-here
 ## Step 3: Test the Setup
 
 1. Start the development server:
+
    ```bash
    npm run dev
    ```
@@ -115,33 +124,37 @@ APPLE_CLIENT_SECRET=your-apple-client-secret-jwt-here
 ## Troubleshooting
 
 ### "Invalid client_id" Error
+
 - Verify credentials match your OAuth app exactly
 - Check that you're using the correct app (dev vs prod)
 
 ### "Redirect URI mismatch" Error
+
 - Check callback URL matches exactly what's configured in OAuth provider
-- GitHub: Must be exact match (no query params)
-- Google: `http://localhost:5000/api/auth/google/callback`
-- GitHub: `http://localhost:5000/api/auth/github/callback`
+- GitHub: Must be exact match — `http://localhost:5000/api/callback/github`
+- Google: `http://localhost:5000/api/callback?provider=google`
 
 ### OAuth Not Working Behind Reverse Proxy
-- Ensure `HOST` environment variable is set correctly
+
+- Ensure `HOST` environment variable is set to your public domain
+- The app uses `HOST` to construct callback URLs in Docker containers
 - Add custom headers in reverse proxy:
   - `X-Forwarded-Proto: https`
   - `X-Forwarded-Host: yourdomain.com`
 - Express must have `trust proxy` enabled (already configured)
 
 ### HTTPS Required in Production
+
 - Production OAuth requires HTTPS
 - Use Synology reverse proxy with Let's Encrypt certificate
 
 ## Callback URL Summary
 
 | Provider | Development | Production |
-|----------|-------------|------------|
-| Google | `http://localhost:5000/api/auth/google/callback` | `https://yourdomain.com/api/auth/google/callback` |
-| GitHub | `http://localhost:5000/api/auth/github/callback` | `https://yourdomain.com/api/auth/github/callback` |
-| Apple | `http://localhost:5000/api/auth/apple/callback` | `https://yourdomain.com/api/auth/apple/callback` |
+| -------- | ----------- | ---------- |
+| Google | `http://localhost:5000/api/callback?provider=google` | `https://yourdomain.com/api/callback?provider=google` |
+| GitHub | `http://localhost:5000/api/callback/github` | `https://yourdomain.com/api/callback/github` |
+| Apple | `http://localhost:5000/api/callback?provider=apple` | `https://yourdomain.com/api/callback?provider=apple` |
 
 ## Security Notes
 

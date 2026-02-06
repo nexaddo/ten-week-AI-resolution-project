@@ -299,7 +299,7 @@ function buildGithubClaims(profile: GitHubProfile): UserClaims {
 }
 
 export async function setupAuth(app: Express) {
-  app.set("trust proxy", 1);
+  // trust proxy is configured in index.ts — no need to set it again here
   app.use(cookieParser());
   app.use(getSession());
 
@@ -350,16 +350,21 @@ export async function setupAuth(app: Express) {
   const registeredStrategies = new Set<string>();
 
   const getCallbackURL = (req: any, provider: OAuthProvider) => {
-    const domain = req.hostname;
-    const port = req.get("host");
-    const isLocalhost = domain === "localhost" || domain === "127.0.0.1";
+    // Use HOST env var for Docker/reverse-proxy deployments where req.hostname
+    // returns the container-internal hostname instead of the public domain
+    const envHost = process.env.HOST;
+    const reqHost = req.get("host") || req.hostname;
+    const host = envHost && envHost !== "localhost" ? envHost : reqHost;
+    const isLocalhost = host === "localhost" || host.startsWith("localhost:") || host.startsWith("127.0.0.1");
     const protocol = isLocalhost ? "http" : "https";
+    // In production behind a reverse proxy, omit the port (use standard 443/80)
+    const baseUrl = `${protocol}://${host}`;
 
     if (provider === "github") {
-      return `${protocol}://${port}/api/callback/github`;
+      return `${baseUrl}/api/callback/github`;
     }
 
-    return `${protocol}://${port}/api/callback?provider=${provider}`;
+    return `${baseUrl}/api/callback?provider=${provider}`;
   };
 
   const ensureOidcStrategy = async (req: any, provider: OidcProvider) => {

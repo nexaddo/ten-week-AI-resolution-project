@@ -369,7 +369,7 @@ export default function MyModelsPage() {
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => window.open(selectedTool.tool.url, "_blank")}
+                  onClick={() => window.open(selectedTool.tool.url ?? undefined, "_blank")}
                 >
                   Visit Tool Website
                 </Button>

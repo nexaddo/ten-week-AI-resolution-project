@@ -631,7 +631,7 @@ export async function registerRoutes(
   // User Models (user-specific selections)
   app.get("/api/model-map/user/models", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const includeStats = req.query.includeStats === "true";
       const userModels = await modelMapStorage.getUserModels(userId);
 
@@ -688,7 +688,7 @@ export async function registerRoutes(
 
   app.post("/api/model-map/user/models", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const { modelId, notes } = req.body;
       const userModel = await modelMapStorage.addUserModel({ userId, modelId, notes });
       res.status(201).json(userModel);
@@ -700,7 +700,7 @@ export async function registerRoutes(
 
   app.delete("/api/model-map/user/models/:modelId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const deleted = await modelMapStorage.removeUserModel(userId, req.params.modelId);
       if (!deleted) {
         return res.status(404).json({ error: "User model not found" });
@@ -715,7 +715,7 @@ export async function registerRoutes(
   // User Tools (user-specific selections)
   app.get("/api/model-map/user/tools", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const includeStats = req.query.includeStats === "true";
       const userTools = await modelMapStorage.getUserTools(userId);
 
@@ -772,7 +772,7 @@ export async function registerRoutes(
 
   app.post("/api/model-map/user/tools", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const { toolId, notes } = req.body;
       const userTool = await modelMapStorage.addUserTool({ userId, toolId, notes });
       res.status(201).json(userTool);
@@ -784,7 +784,7 @@ export async function registerRoutes(
 
   app.delete("/api/model-map/user/tools/:toolId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const deleted = await modelMapStorage.removeUserTool(userId, req.params.toolId);
       if (!deleted) {
         return res.status(404).json({ error: "User tool not found" });
@@ -830,7 +830,7 @@ export async function registerRoutes(
 
   app.post("/api/model-map/use-cases", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const { title, description, category, promptTemplate, variables } = req.body;
       const useCase = await modelMapStorage.createUseCase({
         title,
@@ -851,7 +851,7 @@ export async function registerRoutes(
 
   app.put("/api/model-map/use-cases/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const useCase = await modelMapStorage.getUseCase(req.params.id);
       if (!useCase) {
         return res.status(404).json({ error: "Use case not found" });
@@ -869,7 +869,7 @@ export async function registerRoutes(
 
   app.delete("/api/model-map/use-cases/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const deleted = await modelMapStorage.deleteUseCase(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Use case not found or not authorized" });
@@ -884,7 +884,7 @@ export async function registerRoutes(
   // User Use Cases (favorites)
   app.get("/api/model-map/user/use-cases", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const userUseCases = await modelMapStorage.getUserUseCases(userId);
       res.json(userUseCases);
     } catch (error) {
@@ -895,7 +895,7 @@ export async function registerRoutes(
 
   app.post("/api/model-map/user/use-cases", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const { useCaseId } = req.body;
       const userUseCase = await modelMapStorage.addUserUseCase({ userId, useCaseId });
       res.status(201).json(userUseCase);
@@ -907,7 +907,7 @@ export async function registerRoutes(
 
   app.delete("/api/model-map/user/use-cases/:useCaseId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const deleted = await modelMapStorage.removeUserUseCase(userId, req.params.useCaseId);
       if (!deleted) {
         return res.status(404).json({ error: "User use case not found" });
@@ -922,7 +922,7 @@ export async function registerRoutes(
   // Model Tests
   app.get("/api/model-map/tests", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const includeResults = req.query.includeResults === "true";
       const tests = await modelMapStorage.getModelTests(userId);
 
@@ -953,7 +953,7 @@ export async function registerRoutes(
 
   app.get("/api/model-map/tests/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const test = await modelMapStorage.getModelTest(req.params.id, userId);
       if (!test) {
         return res.status(404).json({ error: "Model test not found" });
@@ -967,7 +967,7 @@ export async function registerRoutes(
 
   app.post("/api/model-map/tests", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const { title, useCaseId, prompt, systemPrompt } = req.body;
       
       const test = await modelMapStorage.createModelTest({
@@ -987,7 +987,7 @@ export async function registerRoutes(
 
   app.delete("/api/model-map/tests/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const deleted = await modelMapStorage.deleteModelTest(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Model test not found" });
@@ -1002,7 +1002,7 @@ export async function registerRoutes(
   // Model Test Results
   app.get("/api/model-map/tests/:testId/results", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const test = await modelMapStorage.getModelTest(req.params.testId, userId);
       if (!test) {
         return res.status(404).json({ error: "Model test not found" });
@@ -1017,7 +1017,7 @@ export async function registerRoutes(
 
   app.post("/api/model-map/tests/:testId/results", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const test = await modelMapStorage.getModelTest(req.params.testId, userId);
       if (!test) {
         return res.status(404).json({ error: "Model test not found" });
@@ -1035,7 +1035,7 @@ export async function registerRoutes(
 
   app.patch("/api/model-map/tests/:testId/results/:resultId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const { userRating, userNotes, accuracyRating, styleRating, speedRating, xFactor, status } = req.body;
       const result = await modelMapStorage.updateModelTestResult(req.params.resultId, {
         userRating,
@@ -1099,7 +1099,7 @@ export async function registerRoutes(
   // Direct test result update endpoint (alternative path)
   app.patch("/api/model-map/test-results/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const { userRating, userNotes, accuracyRating, styleRating, speedRating, xFactor, status } = req.body;
       const result = await modelMapStorage.updateModelTestResult(req.params.id, {
         userRating,
@@ -1163,7 +1163,7 @@ export async function registerRoutes(
   // Model Recommendations
   app.get("/api/model-map/recommendations", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = (req as any).user?.claims?.sub;
       const recommendations = await modelMapStorage.getUserRecommendations(userId);
       res.json(recommendations);
     } catch (error) {
