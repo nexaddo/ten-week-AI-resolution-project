@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Beaker, Brain, FileText, Code, Sparkles, LineChart, Zap, BookOpen, Star, Play } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { UseCase } from "@shared/schema";

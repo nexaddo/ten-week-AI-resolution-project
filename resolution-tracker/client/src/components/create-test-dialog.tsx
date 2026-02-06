@@ -342,7 +342,6 @@ export function CreateTestDialog({ open, onOpenChange, onTestCreated, selectedUs
                 <div className="space-y-1">
                   {filteredModels.map((model) => {
                     const isSelected = selectedModels.includes(model.id);
-                    const isUserModel = userModelIds.has(model.id);
                     return (
                       <div
                         key={model.id}

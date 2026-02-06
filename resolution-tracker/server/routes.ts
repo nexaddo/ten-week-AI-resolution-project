@@ -13,6 +13,8 @@ import {
   insertTestCaseConfigurationSchema,
   insertModelFavoriteSchema,
   insertToolFavoriteSchema,
+  insertUseCaseSchema,
+  insertModelTestSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth_integrations/auth";
@@ -831,17 +833,13 @@ export async function registerRoutes(
   app.post("/api/model-map/use-cases", isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req as any).user?.claims?.sub;
-      const { title, description, category, promptTemplate, variables } = req.body;
-      const useCase = await modelMapStorage.createUseCase({
-        title,
-        description,
-        category,
-        promptTemplate,
-        variables,
+      const validated = insertUseCaseSchema.parse({
+        ...req.body,
         authorId: userId,
         isCurated: false,
         isPublic: true,
       });
+      const useCase = await modelMapStorage.createUseCase(validated);
       res.status(201).json(useCase);
     } catch (error) {
       log(`Failed to create use case: ${error}`);
@@ -969,14 +967,31 @@ export async function registerRoutes(
     try {
       const userId = (req as any).user?.claims?.sub;
       const { title, useCaseId, prompt, systemPrompt } = req.body;
-      
-      const test = await modelMapStorage.createModelTest({
-        userId,
+
+      // Derive prompt from use case if not provided by client
+      let resolvedPrompt = prompt as string | undefined;
+      let resolvedSystemPrompt = systemPrompt as string | undefined;
+      if (!resolvedPrompt && useCaseId) {
+        const useCase = await modelMapStorage.getUseCase(useCaseId);
+        if (!useCase) {
+          return res.status(400).json({ error: "Invalid useCaseId: use case not found" });
+        }
+        if (useCase.promptTemplate) {
+          resolvedPrompt = useCase.promptTemplate;
+        }
+      }
+
+      const validated = insertModelTestSchema.parse({
         title: title || "Untitled Test",
         useCaseId: useCaseId || null,
-        prompt,
-        systemPrompt: systemPrompt || null,
+        prompt: resolvedPrompt || "",
+        systemPrompt: resolvedSystemPrompt || null,
         status: "pending",
+      });
+
+      const test = await modelMapStorage.createModelTest({
+        ...validated,
+        userId,
       });
       res.status(201).json(test);
     } catch (error) {

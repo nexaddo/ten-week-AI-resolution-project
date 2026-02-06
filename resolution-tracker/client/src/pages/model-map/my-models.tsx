@@ -12,7 +12,7 @@ import { Plus, Star, ArrowRight, Cpu } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ModelAvatar } from "@/components/model-avatar";
 import { AddModelDialog } from "@/components/add-model-dialog";
-import type { AiModel, AiTool, UserModel, UserTool, ModelTestResult } from "@shared/schema";
+import type { AiModel, AiTool, UserModel, UserTool } from "@shared/schema";
 
 // Extended type for user models with stats
 type UserModelWithStats = UserModel & {

@@ -64,7 +64,7 @@ export interface IModelMapStorage {
   deleteModelTest(id: string, userId: string): Promise<boolean>;
   
   // Model Test Results
-  getModelTestResults(testId: string): Promise<(ModelTestResult & { model: AiModel })[]>;
+  getModelTestResults(testId: string): Promise<(ModelTestResult & { model: AiModel; tool: AiTool | null })[]>;
   createModelTestResult(result: InsertModelTestResult): Promise<ModelTestResult>;
   updateModelTestResult(id: string, updates: { userRating?: number; userNotes?: string }): Promise<ModelTestResult | undefined>;
   
@@ -642,12 +642,16 @@ Output format:
   }
 
   // Model Test Results
-  async getModelTestResults(testId: string): Promise<(ModelTestResult & { model: AiModel })[]> {
+  async getModelTestResults(testId: string): Promise<(ModelTestResult & { model: AiModel; tool: AiTool | null })[]> {
     const results = Array.from(this.modelTestResults.values()).filter(r => r.testId === testId);
-    return results.map(r => {
-      const model = this.aiModels.get(r.modelId)!;
-      return { ...r, model };
-    }).filter(r => r.model);
+    return results
+      .map(r => {
+        const model = this.aiModels.get(r.modelId);
+        if (!model) return undefined;
+        const tool = r.toolId ? this.aiTools.get(r.toolId) ?? null : null;
+        return { ...r, model, tool };
+      })
+      .filter((r): r is ModelTestResult & { model: AiModel; tool: AiTool | null } => r !== undefined);
   }
 
   async createModelTestResult(result: InsertModelTestResult): Promise<ModelTestResult> {
@@ -714,7 +718,6 @@ Output format:
   }
 
   async updateRecommendation(userId: string, category: string, modelId: string, rating: number): Promise<ModelRecommendation> {
-    const key = `${userId}-${category}`;
     const existing = Array.from(this.modelRecommendations.entries()).find(
       ([_, r]) => r.userId === userId && r.category === category
     );
