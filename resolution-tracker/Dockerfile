@@ -1,5 +1,5 @@
 # Build stage - includes dev dependencies for building
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # Production stage - only runtime dependencies
-FROM node:20-alpine
+FROM node:25-alpine
 
 # Install PostgreSQL client for backups and create non-root user
 RUN apk add --no-cache postgresql-client && \
