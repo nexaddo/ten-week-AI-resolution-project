@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,16 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Sparkles, ThumbsUp, Star, BookOpen, Heart } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { AVAILABLE_MODELS, getProviderColor } from "@/lib/models";
-import type { 
-  PromptTest, 
-  PromptTestResult, 
-  TestCaseTemplate, 
+import type {
+  PromptTest,
+  PromptTestResult,
+  TestCaseTemplate,
   ModelFavorite,
 } from "@shared/schema";
-
-interface PromptTestWithResults extends PromptTest {
-  results?: PromptTestResult[];
-}
 
 interface ModelAnalytics {
   modelName: string;
@@ -66,15 +62,6 @@ export default function PromptPlaygroundEnhanced() {
     queryKey: ["/api/model-analytics"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/model-analytics");
-      return res.json();
-    },
-  });
-
-  // Note: tests query is used to invalidate cache, not directly rendered
-  useQuery<PromptTestWithResults[]>({
-    queryKey: ["/api/prompt-tests"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/prompt-tests");
       return res.json();
     },
   });
@@ -142,7 +129,7 @@ export default function PromptPlaygroundEnhanced() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim()) return;
 
@@ -151,17 +138,17 @@ export default function PromptPlaygroundEnhanced() {
       systemPrompt: systemPrompt.trim() || undefined,
       category: selectedTemplate?.useCaseType,
     });
-  };
+  }, [prompt, systemPrompt, selectedTemplate, createTestMutation]);
 
-  const handleRating = (resultId: string, rating: number) => {
+  const handleRating = useCallback((resultId: string, rating: number) => {
     updateRatingMutation.mutate({ resultId, userRating: rating });
-  };
+  }, [updateRatingMutation]);
 
-  const handleTemplateSelect = (template: TestCaseTemplate) => {
+  const handleTemplateSelect = useCallback((template: TestCaseTemplate) => {
     setSelectedTemplate(template);
     setSystemPrompt(template.systemPrompt || "");
     setPrompt(template.examplePrompt);
-    
+
     // Set suggested models if available
     if (template.suggestedModels) {
       try {
@@ -171,7 +158,6 @@ export default function PromptPlaygroundEnhanced() {
         }
       } catch (e) {
         // Parsing errors are non-fatal; user can still pick models manually.
-        // Log for debugging so malformed template data can be detected and fixed.
         // eslint-disable-next-line no-console
         console.error("Failed to parse template.suggestedModels JSON:", e, {
           templateId: template.id,
@@ -179,34 +165,34 @@ export default function PromptPlaygroundEnhanced() {
         });
       }
     }
-    
+
     setShowTemplateDialog(false);
     setActiveTab("test");
-  };
+  }, []);
 
-  const isModelFavorite = (modelName: string, provider: string) => {
+  const isModelFavorite = useCallback((modelName: string, provider: string) => {
     return modelFavorites.some(f => f.modelName === modelName && f.provider === provider);
-  };
+  }, [modelFavorites]);
 
-  const toggleModelSelection = (modelId: string) => {
-    setSelectedModels(prev => 
-      prev.includes(modelId) 
+  const toggleModelSelection = useCallback((modelId: string) => {
+    setSelectedModels(prev =>
+      prev.includes(modelId)
         ? prev.filter(id => id !== modelId)
         : [...prev, modelId]
     );
-  };
+  }, []);
 
   const getStatusColor = (status: string) => {
     return status === "success" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
   };
 
   // Group templates by use case type
-  const templatesByType = templates.reduce((acc, template) => {
+  const templatesByType = useMemo(() => templates.reduce((acc, template) => {
     const type = template.useCaseType || "general";
     if (!acc[type]) acc[type] = [];
     acc[type].push(template);
     return acc;
-  }, {} as Record<string, TestCaseTemplate[]>);
+  }, {} as Record<string, TestCaseTemplate[]>), [templates]);
 
   return (
     <div className="p-6 space-y-6">

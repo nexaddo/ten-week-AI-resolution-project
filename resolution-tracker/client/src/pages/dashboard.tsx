@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { StatsCards } from "@/components/stats-cards";
@@ -109,43 +109,43 @@ export function Dashboard({ selectedCategory }: DashboardProps) {
     },
   });
 
-  const handleAddResolution = (data: InsertResolution) => {
+  const handleAddResolution = useCallback((data: InsertResolution) => {
     if (editingResolution) {
       updateMutation.mutate({ id: editingResolution.id, data });
     } else {
       createMutation.mutate(data);
     }
-  };
+  }, [editingResolution, updateMutation, createMutation]);
 
-  const handleEdit = (resolution: Resolution) => {
+  const handleEdit = useCallback((resolution: Resolution) => {
     setEditingResolution(resolution);
     setAddDialogOpen(true);
-  };
+  }, []);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     deleteMutation.mutate(id);
-  };
+  }, [deleteMutation]);
 
-  const handleMarkComplete = (id: string) => {
-    updateMutation.mutate({ 
-      id, 
-      data: { status: "completed", progress: 100 } 
+  const handleMarkComplete = useCallback((id: string) => {
+    updateMutation.mutate({
+      id,
+      data: { status: "completed", progress: 100 }
     });
-  };
+  }, [updateMutation]);
 
-  const handleAddCheckIn = (resolution: Resolution) => {
+  const handleAddCheckIn = useCallback((resolution: Resolution) => {
     setCheckInResolution(resolution);
     setCheckInDialogOpen(true);
-  };
+  }, []);
 
-  const handleCheckInSubmit = (data: { note: string; progress: number }) => {
+  const handleCheckInSubmit = useCallback((data: { note: string; progress: number }) => {
     if (!checkInResolution) return;
     checkInMutation.mutate({
       resolutionId: checkInResolution.id,
       note: data.note,
       progress: data.progress,
     });
-  };
+  }, [checkInResolution, checkInMutation]);
 
   const filteredResolutions = selectedCategory
     ? resolutions.filter((r) => r.category === selectedCategory)

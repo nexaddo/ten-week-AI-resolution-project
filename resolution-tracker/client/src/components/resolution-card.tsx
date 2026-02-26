@@ -1,15 +1,16 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CategoryBadge } from "./category-badge";
 import { StatusBadge } from "./status-badge";
 import { ProgressBar } from "./progress-bar";
-import { 
-  MoreHorizontal, 
-  Calendar, 
-  Pencil, 
-  Trash2, 
+import {
+  MoreHorizontal,
+  Calendar,
+  Pencil,
+  Trash2,
   CheckCircle,
-  MessageSquarePlus 
+  MessageSquarePlus
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -29,7 +30,7 @@ interface ResolutionCardProps {
   onAddCheckIn: (resolution: Resolution) => void;
 }
 
-export function ResolutionCard({
+export const ResolutionCard = memo(function ResolutionCard({
   resolution,
   onEdit,
   onDelete,
@@ -121,4 +122,4 @@ export function ResolutionCard({
       </CardContent>
     </Card>
   );
-}
+});

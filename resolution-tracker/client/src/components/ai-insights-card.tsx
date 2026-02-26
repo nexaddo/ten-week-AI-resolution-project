@@ -4,41 +4,33 @@ import { Badge } from "./ui/badge";
 import { Sparkles, Loader2, AlertCircle, Lightbulb } from "lucide-react";
 import { apiRequest } from "../lib/queryClient";
 import type { AiInsight } from "@shared/schema";
-import { useEffect, useState } from "react";
+import { useRef } from "react";
 
 interface AiInsightsCardProps {
   checkInId: string;
 }
 
 export function AiInsightsCard({ checkInId }: AiInsightsCardProps) {
-  const [pollCount, setPollCount] = useState(0);
+  const pollCountRef = useRef(0);
   const maxPolls = 15; // 15 polls * 2 seconds = 30 seconds
 
   const { data: insights, isLoading, error } = useQuery<AiInsight[]>({
     queryKey: ["/api/check-ins", checkInId, "insights"],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/check-ins/${checkInId}/insights`);
+      pollCountRef.current += 1;
       return res.json();
     },
     refetchInterval: (query) => {
       // Stop polling if we have insights or reached max polls
       const data = query.state.data;
-      if ((data && data.length > 0) || pollCount >= maxPolls) {
+      if ((data && data.length > 0) || pollCountRef.current >= maxPolls) {
         return false;
       }
       return 2000; // Poll every 2 seconds
     },
     refetchIntervalInBackground: false,
   });
-
-  useEffect(() => {
-    if (!insights || insights.length === 0) {
-      const timer = setInterval(() => {
-        setPollCount((prev) => prev + 1);
-      }, 2000);
-      return () => clearInterval(timer);
-    }
-  }, [insights]);
 
   const getSentimentColor = (sentiment: string | null) => {
     switch (sentiment) {
@@ -84,7 +76,7 @@ export function AiInsightsCard({ checkInId }: AiInsightsCardProps) {
     );
   }
 
-  if (isLoading || ((!insights || insights.length === 0) && pollCount < maxPolls)) {
+  if (isLoading || ((!insights || insights.length === 0) && pollCountRef.current < maxPolls)) {
     return (
       <Card className="border-purple-200 dark:border-purple-900">
         <CardHeader>

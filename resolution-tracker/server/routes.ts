@@ -29,6 +29,10 @@ import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+// Simple TTL cache for admin checks to avoid repeated DB queries for the same user
+const adminCache = new Map<string, { isAdmin: boolean; expiresAt: number }>();
+const ADMIN_CACHE_TTL_MS = 60 * 1000; // 1 minute
+
 // Middleware to check if user is admin
 async function isAdmin(req: any, res: any, next: any) {
   try {
@@ -37,9 +41,21 @@ async function isAdmin(req: any, res: any, next: any) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
+    // Check cache first
+    const cached = adminCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      if (!cached.isAdmin) {
+        return res.status(403).json({ error: "Forbidden: Admin access required" });
+      }
+      return next();
+    }
+
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    
-    if (!user || user.role !== "admin") {
+
+    const userIsAdmin = !!(user && user.role === "admin");
+    adminCache.set(userId, { isAdmin: userIsAdmin, expiresAt: Date.now() + ADMIN_CACHE_TTL_MS });
+
+    if (!userIsAdmin) {
       return res.status(403).json({ error: "Forbidden: Admin access required" });
     }
 

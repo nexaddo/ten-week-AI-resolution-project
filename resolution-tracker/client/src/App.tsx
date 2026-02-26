@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -9,13 +9,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Dashboard } from "@/pages/dashboard";
-import { Achievements } from "@/pages/achievements";
-import { CalendarView } from "@/pages/calendar-view";
-import { Settings } from "@/pages/settings";
-import { Analytics } from "@/pages/analytics";
-import { AIDashboard } from "@/pages/ai-dashboard";
-import PromptPlaygroundEnhanced from "@/pages/prompt-playground-enhanced";
-import { MyMapPage, UseCasesPage, TestLabPage, MyModelsPage } from "@/pages/model-map";
 import { Landing } from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
@@ -27,24 +20,46 @@ import { LogOut } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Category } from "@shared/schema";
 
+// Lazy-loaded route pages for code splitting
+const Achievements = lazy(() => import("@/pages/achievements").then(m => ({ default: m.Achievements })));
+const CalendarView = lazy(() => import("@/pages/calendar-view").then(m => ({ default: m.CalendarView })));
+const Settings = lazy(() => import("@/pages/settings").then(m => ({ default: m.Settings })));
+const Analytics = lazy(() => import("@/pages/analytics").then(m => ({ default: m.Analytics })));
+const AIDashboard = lazy(() => import("@/pages/ai-dashboard").then(m => ({ default: m.AIDashboard })));
+const PromptPlaygroundEnhanced = lazy(() => import("@/pages/prompt-playground-enhanced"));
+const MyMapPage = lazy(() => import("@/pages/model-map").then(m => ({ default: m.MyMapPage })));
+const UseCasesPage = lazy(() => import("@/pages/model-map").then(m => ({ default: m.UseCasesPage })));
+const TestLabPage = lazy(() => import("@/pages/model-map").then(m => ({ default: m.TestLabPage })));
+const MyModelsPage = lazy(() => import("@/pages/model-map").then(m => ({ default: m.MyModelsPage })));
+
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center p-12">
+      <Skeleton className="h-64 w-full max-w-2xl" />
+    </div>
+  );
+}
+
 function Router({ selectedCategory }: { selectedCategory: Category | null }) {
   return (
-    <Switch>
-      <Route path="/" component={() => <Dashboard selectedCategory={selectedCategory} />} />
-      <Route path="/resolutions" component={() => <Dashboard selectedCategory={selectedCategory} />} />
-      <Route path="/calendar" component={CalendarView} />
-      <Route path="/achievements" component={Achievements} />
-      <Route path="/analytics" component={Analytics} />
-      <Route path="/ai-dashboard" component={AIDashboard} />
-      <Route path="/prompt-playground" component={PromptPlaygroundEnhanced} />
-      <Route path="/model-map" component={MyMapPage} />
-      <Route path="/model-map/my-map" component={MyMapPage} />
-      <Route path="/model-map/use-cases" component={UseCasesPage} />
-      <Route path="/model-map/test-lab" component={TestLabPage} />
-      <Route path="/model-map/my-models" component={MyModelsPage} />
-      <Route path="/settings" component={Settings} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<RouteFallback />}>
+      <Switch>
+        <Route path="/" component={() => <Dashboard selectedCategory={selectedCategory} />} />
+        <Route path="/resolutions" component={() => <Dashboard selectedCategory={selectedCategory} />} />
+        <Route path="/calendar" component={CalendarView} />
+        <Route path="/achievements" component={Achievements} />
+        <Route path="/analytics" component={Analytics} />
+        <Route path="/ai-dashboard" component={AIDashboard} />
+        <Route path="/prompt-playground" component={PromptPlaygroundEnhanced} />
+        <Route path="/model-map" component={MyMapPage} />
+        <Route path="/model-map/my-map" component={MyMapPage} />
+        <Route path="/model-map/use-cases" component={UseCasesPage} />
+        <Route path="/model-map/test-lab" component={TestLabPage} />
+        <Route path="/model-map/my-models" component={MyModelsPage} />
+        <Route path="/settings" component={Settings} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 

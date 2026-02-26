@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -56,9 +56,27 @@ export function TemplateLibraryDialog({ open, onOpenChange, onSelectTemplate }: 
   });
 
   const categories = Array.from(new Set(templates.map(t => t.category)));
-  const filteredTemplates = selectedCategory === "all" 
-    ? templates 
+  const filteredTemplates = selectedCategory === "all"
+    ? templates
     : templates.filter(t => t.category === selectedCategory);
+
+  // Pre-parse tags JSON once when templates change, not on every render
+  const parsedTagsMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const template of templates) {
+      if (template.tags) {
+        try {
+          const tags = JSON.parse(template.tags);
+          if (Array.isArray(tags)) {
+            map.set(template.id, tags);
+          }
+        } catch {
+          // skip invalid JSON
+        }
+      }
+    }
+    return map;
+  }, [templates]);
 
   const handleSelectTemplate = (template: PromptTemplate) => {
     onSelectTemplate(template);
@@ -120,22 +138,15 @@ export function TemplateLibraryDialog({ open, onOpenChange, onSelectTemplate }: 
                           <p className="text-sm text-muted-foreground mt-1">
                             {template.description}
                           </p>
-                          {template.tags && (() => {
-                            try {
-                              const tags = JSON.parse(template.tags);
-                              return (
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {tags.map((tag: string) => (
-                                    <Badge key={tag} variant="secondary" className="text-xs">
-                                      {tag}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              );
-                            } catch (e) {
-                              return null;
-                            }
-                          })()}
+                          {parsedTagsMap.has(template.id) && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {parsedTagsMap.get(template.id)!.map((tag: string) => (
+                                <Badge key={tag} variant="secondary" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                           {template.systemPrompt && (
                             <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
                               System: {template.systemPrompt}
