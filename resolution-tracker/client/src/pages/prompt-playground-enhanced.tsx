@@ -82,8 +82,19 @@ export default function PromptPlaygroundEnhanced() {
   });
 
   const createTestMutation = useMutation({
-    mutationFn: async (data: { prompt: string; systemPrompt?: string; category?: string }) => {
-      const res = await apiRequest("POST", "/api/prompt-tests", data);
+    mutationFn: async (data: {
+      prompt: string;
+      systemPrompt?: string;
+      category?: string;
+      selectedModels?: string[];
+    }) => {
+      const payload = {
+        prompt: data.prompt,
+        systemPrompt: data.systemPrompt,
+        category: data.category,
+        selectedModels: data.selectedModels ? JSON.stringify(data.selectedModels) : undefined,
+      };
+      const res = await apiRequest("POST", "/api/prompt-tests", payload);
       return res.json();
     },
     onSuccess: (test: PromptTest) => {
@@ -137,8 +148,9 @@ export default function PromptPlaygroundEnhanced() {
       prompt: prompt.trim(),
       systemPrompt: systemPrompt.trim() || undefined,
       category: selectedTemplate?.useCaseType,
+      selectedModels,
     });
-  }, [prompt, systemPrompt, selectedTemplate, createTestMutation]);
+  }, [prompt, systemPrompt, selectedTemplate, selectedModels, createTestMutation]);
 
   const handleRating = useCallback((resultId: string, rating: number) => {
     updateRatingMutation.mutate({ resultId, userRating: rating });
